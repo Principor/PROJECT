@@ -1,5 +1,4 @@
 from torch import nn
-import torch
 
 
 class Actor(nn.Module):
@@ -11,6 +10,4 @@ class Actor(nn.Module):
         )
 
     def forward(self, state):
-        dist = torch.distributions.Categorical(self.actor(torch.tensor(state)))
-        action = dist.sample()
-        return action.detach().numpy()
+        return self.actor(state)
