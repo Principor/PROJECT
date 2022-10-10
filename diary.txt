@@ -1,0 +1,3 @@
+2022/10/10
+Created basic "vanilla" policy gradient that learns successfully.
+Biggest issue encountered was setting up and maintaining version control for conda virtual environment.

@@ -8,13 +8,15 @@ from actor import Actor
 NUM_EPISODES = 5000
 MAX_STEPS = 500
 GAMMA = 0.99
+LEARNING_RATE = 0.01
 LOG_FREQUENCY = 100
 ROLLING_AVG = 10
 
 
 class Agent:
-    def __init__(self, state_size, action_size, gamma):
+    def __init__(self, state_size, action_size, gamma, lr):
         self.actor = Actor(state_size, action_size)
+        self.optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.gamma = gamma
         self.action_memory = []
         self.reward_memory = []
@@ -35,13 +37,22 @@ class Agent:
         returns = np.array(self.reward_memory) * discounts
         returns = returns[::-1].cumsum()[::-1] / discounts
 
+        returns_tensor = torch.tensor((returns - returns.mean()) / returns.std())
+        actions_tensor = torch.stack(self.action_memory)
+
+        loss = -(actions_tensor * returns_tensor).mean()
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
         self.action_memory.clear()
         self.reward_memory.clear()
 
 
 def train():
     env = gym.make("LunarLander-v2")
-    agent = Agent(env.observation_space.shape[0], env.action_space.n, GAMMA)
+    agent = Agent(env.observation_space.shape[0], env.action_space.n, GAMMA, LEARNING_RATE)
     scores = []
     for episode in range(NUM_EPISODES):
         score = 0
