@@ -5,7 +5,8 @@ from matplotlib import pyplot as plt
 
 from actor import Actor
 
-NUM_EPISODES = 2000
+NUM_EPISODES = 5000
+MAX_STEPS = 500
 GAMMA = 0.99
 LOG_FREQUENCY = 100
 ROLLING_AVG = 10
@@ -30,7 +31,7 @@ class Agent:
 
     def learn(self):
         t = np.arange(len(self.reward_memory))
-        discounts = GAMMA ** t
+        discounts = self.gamma ** t
         returns = np.array(self.reward_memory) * discounts
         returns = returns[::-1].cumsum()[::-1] / discounts
 
@@ -43,14 +44,15 @@ def train():
     agent = Agent(env.observation_space.shape[0], env.action_space.n, GAMMA)
     scores = []
     for episode in range(NUM_EPISODES):
-        terminated = False
         score = 0
         observation, info = env.reset()
-        while not terminated:
+        for step in range(MAX_STEPS):
             action = agent.choose_action(observation)
             observation, reward, terminated, truncated, info = env.step(action)
             score += reward
             agent.remember(reward)
+            if terminated or truncated:
+                break
         scores.append(score)
         agent.learn()
         if (episode + 1) % LOG_FREQUENCY == 0:
