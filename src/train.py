@@ -1,7 +1,7 @@
 import gym
 import torch
 import numpy as np
-from matplotlib import pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
 
 from actor import Actor
 
@@ -10,7 +10,6 @@ MAX_STEPS = 500
 GAMMA = 0.99
 LEARNING_RATE = 0.01
 LOG_FREQUENCY = 100
-ROLLING_AVG = 10
 
 
 class Agent:
@@ -52,7 +51,9 @@ class Agent:
 
 def train():
     env = gym.make("LunarLander-v2")
+    writer = SummaryWriter("../summaries/policy_gradient")
     agent = Agent(env.observation_space.shape[0], env.action_space.n, GAMMA, LEARNING_RATE)
+
     scores = []
     for episode in range(NUM_EPISODES):
         score = 0
@@ -65,12 +66,12 @@ def train():
             if terminated or truncated:
                 break
         scores.append(score)
+        writer.add_scalar("Score", score, episode)
         agent.learn()
         if (episode + 1) % LOG_FREQUENCY == 0:
             print("Episode: {}\t\tScore: {}".format(episode, np.mean(scores[-LOG_FREQUENCY:])))
     env.close()
-    plt.plot(np.convolve(np.array(scores), np.ones(ROLLING_AVG), 'valid') / ROLLING_AVG)
-    plt.show()
+    writer.close()
 
 
 if __name__ == '__main__':
