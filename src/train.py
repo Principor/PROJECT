@@ -1,3 +1,5 @@
+import os
+
 import gym
 import torch
 import numpy as np
@@ -10,6 +12,7 @@ MAX_STEPS = 500
 GAMMA = 0.99
 LEARNING_RATE = 0.01
 LOG_FREQUENCY = 100
+RUN_NAME = "policy_gradient"
 
 
 class Agent:
@@ -48,6 +51,12 @@ class Agent:
         self.action_memory.clear()
         self.reward_memory.clear()
 
+    def save_model(self):
+        path = "../models/{}".format(RUN_NAME)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        torch.save(self.actor.state_dict(), path + "/actor.pth")
+
 
 def train():
     env = gym.make("LunarLander-v2")
@@ -72,6 +81,7 @@ def train():
             print("Episode: {}\t\tScore: {}".format(episode, np.mean(scores[-LOG_FREQUENCY:])))
     env.close()
     writer.close()
+    agent.save_model()
 
 
 if __name__ == '__main__':
