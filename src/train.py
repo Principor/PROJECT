@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 from actor import Actor
+from critic import Critic
 
 NUM_EPISODES = 5000
 MAX_STEPS = 500
@@ -18,16 +19,20 @@ RUN_NAME = "policy_gradient"
 class Agent:
     def __init__(self, state_size, action_size, gamma, lr):
         self.actor = Actor(state_size, action_size)
-        self.optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
+        self.critic = Critic(state_size)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr)
         self.gamma = gamma
         self.action_memory = []
         self.reward_memory = []
+        self.value_memory = []
 
     def choose_action(self, state):
         state_tensor = torch.tensor(state)
         dist = torch.distributions.Categorical(self.actor(state_tensor))
         action = dist.sample()
         self.action_memory.append(dist.log_prob(action))
+        self.value_memory.append(self.critic(state_tensor))
         return action.detach().numpy()
 
     def remember(self, reward):
@@ -38,18 +43,23 @@ class Agent:
         discounts = self.gamma ** t
         returns = np.array(self.reward_memory) * discounts
         returns = returns[::-1].cumsum()[::-1] / discounts
+        returns = torch.tensor(returns, dtype=torch.float32)
+        actions = torch.stack(self.action_memory)
+        values = torch.squeeze(torch.stack(self.value_memory))
 
-        returns_tensor = torch.tensor((returns - returns.mean()) / returns.std())
-        actions_tensor = torch.stack(self.action_memory)
+        actor_loss = -(actions * (returns - returns.mean()) / returns.std()).mean()
+        critic_loss = torch.nn.functional.mse_loss(returns, values).mean()
+        loss = actor_loss + critic_loss
 
-        loss = -(actions_tensor * returns_tensor).mean()
-
-        self.optimizer.zero_grad()
+        self.actor_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
         loss.backward()
-        self.optimizer.step()
+        self.actor_optimizer.step()
+        self.critic_optimizer.step()
 
         self.action_memory.clear()
         self.reward_memory.clear()
+        self.value_memory.clear()
 
     def save_model(self):
         path = "../models/{}".format(RUN_NAME)
