@@ -13,7 +13,7 @@ MAX_STEPS = 500
 GAMMA = 0.99
 LEARNING_RATE = 0.01
 LOG_FREQUENCY = 100
-RUN_NAME = "policy_gradient"
+RUN_NAME = "actor_critic"
 
 
 class Agent:
@@ -46,8 +46,10 @@ class Agent:
         returns = torch.tensor(returns, dtype=torch.float32)
         actions = torch.stack(self.action_memory)
         values = torch.squeeze(torch.stack(self.value_memory))
+        advantages = returns - values.detach()
+        advantages = (advantages - advantages.mean()) / advantages.std()
 
-        actor_loss = -(actions * (returns - returns.mean()) / returns.std()).mean()
+        actor_loss = -(actions * advantages).mean()
         critic_loss = torch.nn.functional.mse_loss(returns, values).mean()
         loss = actor_loss + critic_loss
 
@@ -70,7 +72,7 @@ class Agent:
 
 def train():
     env = gym.make("LunarLander-v2")
-    writer = SummaryWriter("../summaries/policy_gradient")
+    writer = SummaryWriter("../summaries/" + RUN_NAME)
     agent = Agent(env.observation_space.shape[0], env.action_space.n, GAMMA, LEARNING_RATE)
 
     scores = []
