@@ -8,11 +8,12 @@ from torch.utils.tensorboard import SummaryWriter
 from actor import Actor
 from critic import Critic
 
-NUM_EPISODES = 5000
-MAX_STEPS = 500
+NUM_UPDATES = 200
+UPDATE_STEPS = 5000
+MAX_EPISODE_STEPS = 500
 GAMMA = 0.99
 LEARNING_RATE = 0.01
-LOG_FREQUENCY = 100
+LOG_FREQUENCY = 10
 RUN_NAME = "actor_critic"
 
 
@@ -25,6 +26,7 @@ class Agent:
         self.gamma = gamma
         self.action_memory = []
         self.reward_memory = []
+        self.terminated_memory = []
         self.value_memory = []
 
     def choose_action(self, state):
@@ -35,14 +37,16 @@ class Agent:
         self.value_memory.append(self.critic(state_tensor))
         return action.detach().numpy()
 
-    def remember(self, reward):
+    def remember(self, reward, terminated):
         self.reward_memory.append(reward)
+        self.terminated_memory.append(terminated)
 
-    def learn(self):
-        t = np.arange(len(self.reward_memory))
-        discounts = self.gamma ** t
-        returns = np.array(self.reward_memory) * discounts
-        returns = returns[::-1].cumsum()[::-1] / discounts
+    def learn(self, next_state):
+        current_return = self.critic(torch.tensor(next_state))
+        returns = []
+        for reward, terminated in reversed(list(zip(self.reward_memory, self.terminated_memory))):
+            current_return = reward + self.gamma * current_return * (1 - terminated)
+            returns.insert(0, current_return)
         returns = torch.tensor(returns, dtype=torch.float32)
         actions = torch.stack(self.action_memory)
         values = torch.squeeze(torch.stack(self.value_memory))
@@ -61,6 +65,7 @@ class Agent:
 
         self.action_memory.clear()
         self.reward_memory.clear()
+        self.terminated_memory.clear()
         self.value_memory.clear()
 
     def save_model(self):
@@ -75,22 +80,28 @@ def train():
     writer = SummaryWriter("../summaries/" + RUN_NAME)
     agent = Agent(env.observation_space.shape[0], env.action_space.n, GAMMA, LEARNING_RATE)
 
+    observation, info = env.reset()
+    score = episode_step = 0
+    episodes = 0
     scores = []
-    for episode in range(NUM_EPISODES):
-        score = 0
-        observation, info = env.reset()
-        for step in range(MAX_STEPS):
+    for update in range(NUM_UPDATES):
+        for _ in range(UPDATE_STEPS):
             action = agent.choose_action(observation)
             observation, reward, terminated, truncated, info = env.step(action)
             score += reward
-            agent.remember(reward)
-            if terminated or truncated:
-                break
-        scores.append(score)
-        writer.add_scalar("Score", score, episode)
-        agent.learn()
-        if (episode + 1) % LOG_FREQUENCY == 0:
-            print("Episode: {}\t\tScore: {}".format(episode, np.mean(scores[-LOG_FREQUENCY:])))
+            agent.remember(reward, terminated)
+            if terminated or truncated or episode_step == MAX_EPISODE_STEPS:
+                scores.append(score)
+                episodes += 1
+                writer.add_scalar("Score", score, episodes)
+                score = episode_step = 0
+                observation, info = env.reset()
+            episode_step += 1
+        agent.learn(observation)
+        if (update + 1) % LOG_FREQUENCY == 0:
+            print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
+            scores.clear()
+
     env.close()
     writer.close()
     agent.save_model()
