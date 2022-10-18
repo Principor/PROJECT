@@ -6,7 +6,7 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         self.actor = nn.Sequential(
             nn.Linear(state_size, action_size),
-            nn.Softmax(dim=0)
+            nn.Softmax(dim=-1)
         )
 
     def forward(self, state):
