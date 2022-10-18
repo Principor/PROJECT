@@ -81,22 +81,19 @@ def train():
     agent = Agent(env.observation_space.shape[0], env.action_space.n, GAMMA, LEARNING_RATE)
 
     observation, info = env.reset()
-    score = episode_step = 0
-    episodes = 0
+    score = 0
     scores = []
     for update in range(NUM_UPDATES):
-        for _ in range(UPDATE_STEPS):
+        for update_step in range(UPDATE_STEPS):
             action = agent.choose_action(observation)
             observation, reward, terminated, truncated, info = env.step(action)
             score += reward
-            agent.remember(reward, terminated)
-            if terminated or truncated or episode_step == MAX_EPISODE_STEPS:
+            agent.remember(reward, terminated or truncated)
+            if terminated or truncated:
                 scores.append(score)
-                episodes += 1
-                writer.add_scalar("Score", score, episodes)
-                score = episode_step = 0
+                writer.add_scalar("Score", score, NUM_UPDATES * UPDATE_STEPS + update_step)
+                score = 0
                 observation, info = env.reset()
-            episode_step += 1
         agent.learn(observation)
         if (update + 1) % LOG_FREQUENCY == 0:
             print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
