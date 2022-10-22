@@ -9,14 +9,16 @@ from actor import Actor
 from critic import Critic
 
 NUM_UPDATES = 200
-BUFFER_SIZE = 5000
+BATCH_SIZE = 512
+NUM_BATCHES = 10
+BUFFER_SIZE = NUM_BATCHES * BATCH_SIZE
 
 NUM_EPOCHS = 20
 GAMMA = 0.99
 LEARNING_RATE = 0.001
 
 LOG_FREQUENCY = 10
-RUN_NAME = "actor_critic"
+RUN_NAME = "actor_critic_batched"
 
 
 class Agent:
@@ -49,35 +51,47 @@ class Agent:
 
     def learn(self, next_state):
         current_return = self.critic(torch.tensor(next_state)).item()
-        returns = []
+        all_returns = []
         for reward, terminated in reversed(list(zip(self.reward_memory, self.terminated_memory))):
             current_return = reward + self.gamma * current_return * (1 - terminated)
-            returns.insert(0, current_return)
-        returns = np.array(returns)
-        returns = (returns - returns.std()) / returns.std()
-
-        returns = torch.tensor(returns, dtype=torch.float32)
-        states = torch.tensor(np.stack(self.state_memory))
-        actions = torch.tensor(np.stack(self.action_memory))
-        old_probs = torch.tensor(np.stack(self.prob_memory))
+            all_returns.insert(0, current_return)
+        all_returns = np.array(all_returns)
+        all_returns = (all_returns - all_returns.std()) / all_returns.std()
+        all_states = np.stack(self.state_memory)
+        all_actions = np.stack(self.action_memory)
+        all_probs = np.stack(self.prob_memory)
 
         for _ in range(self.num_epochs):
-            dist = torch.distributions.Categorical(self.actor(states))
-            new_values = torch.squeeze(self.critic(states))
 
-            new_probs = dist.log_prob(actions)
-            ratios = torch.exp(new_probs - old_probs)
-            advantages = returns - new_values.detach()
+            indices = np.arange(BUFFER_SIZE)
+            np.random.shuffle(indices)
+            indices = np.split(indices, NUM_BATCHES)
 
-            actor_loss = -(ratios * advantages).mean()
-            critic_loss = torch.nn.functional.mse_loss(returns, new_values).mean()
-            loss = actor_loss + critic_loss
+            batches = [(
+                torch.tensor(all_returns[batch_indices], dtype=torch.float32),
+                torch.tensor(all_states[batch_indices]),
+                torch.tensor(all_actions[batch_indices]),
+                torch.tensor(all_probs[batch_indices])
+            ) for batch_indices in indices]
 
-            self.actor_optimizer.zero_grad()
-            self.critic_optimizer.zero_grad()
-            loss.backward()
-            self.actor_optimizer.step()
-            self.critic_optimizer.step()
+            for batch in batches:
+                returns, states, actions, old_probs = batch
+                dist = torch.distributions.Categorical(self.actor(states))
+                new_values = torch.squeeze(self.critic(states))
+
+                new_probs = dist.log_prob(actions)
+                ratios = torch.exp(new_probs - old_probs)
+                advantages = returns - new_values.detach()
+
+                actor_loss = -(ratios * advantages).mean()
+                critic_loss = torch.nn.functional.mse_loss(returns, new_values).mean()
+                loss = actor_loss + critic_loss
+
+                self.actor_optimizer.zero_grad()
+                self.critic_optimizer.zero_grad()
+                loss.backward()
+                self.actor_optimizer.step()
+                self.critic_optimizer.step()
 
         self.state_memory.clear()
         self.action_memory.clear()
