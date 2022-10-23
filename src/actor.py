@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 
@@ -10,4 +11,4 @@ class Actor(nn.Module):
         )
 
     def forward(self, state):
-        return self.actor(state)
+        return torch.distributions.Categorical(self.actor(state))

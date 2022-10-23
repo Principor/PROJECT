@@ -40,7 +40,7 @@ class Agent:
 
     def choose_action(self, state):
         state_tensor = torch.tensor(state)
-        dist = torch.distributions.Categorical(self.actor(state_tensor))
+        dist = self.actor(state_tensor)
         action = dist.sample()
         self.state_memory.append(state)
         self.action_memory.append(action.detach().numpy())
@@ -78,7 +78,7 @@ class Agent:
 
             for batch in batches:
                 returns, states, actions, old_probs = batch
-                dist = torch.distributions.Categorical(self.actor(states))
+                dist = self.actor(states)
                 new_values = torch.squeeze(self.critic(states))
 
                 new_probs = dist.log_prob(actions)
