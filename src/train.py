@@ -14,20 +14,22 @@ NUM_BATCHES = 10
 BUFFER_SIZE = NUM_BATCHES * BATCH_SIZE
 
 NUM_EPOCHS = 20
+EPSILON = 0.2
 GAMMA = 0.99
 LEARNING_RATE = 0.001
 
 LOG_FREQUENCY = 10
-RUN_NAME = "actor_critic_batched"
+RUN_NAME = "ppo"
 
 
 class Agent:
-    def __init__(self, state_size, action_size, num_epochs, gamma, lr):
+    def __init__(self, state_size, action_size, num_epochs, epsilon, gamma, lr):
         self.actor = Actor(state_size, action_size)
         self.critic = Critic(state_size)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr)
         self.num_epochs = num_epochs
+        self.eps = epsilon
         self.gamma = gamma
 
         self.state_memory = []
@@ -83,7 +85,10 @@ class Agent:
                 ratios = torch.exp(new_probs - old_probs)
                 advantages = returns - new_values.detach()
 
-                actor_loss = -(ratios * advantages).mean()
+                unclipped = ratios * advantages
+                clipped = torch.clip(ratios, 1-self.eps, 1+self.eps) * advantages
+
+                actor_loss = -torch.min(unclipped, clipped).mean()
                 critic_loss = torch.nn.functional.mse_loss(returns, new_values).mean()
                 loss = actor_loss + critic_loss
 
@@ -109,7 +114,7 @@ class Agent:
 def train():
     env = gym.make("LunarLander-v2")
     writer = SummaryWriter("../summaries/" + RUN_NAME)
-    agent = Agent(env.observation_space.shape[0], env.action_space.n, NUM_EPOCHS, GAMMA, LEARNING_RATE)
+    agent = Agent(env.observation_space.shape[0], env.action_space.n, NUM_EPOCHS, EPSILON, GAMMA, LEARNING_RATE)
 
     score = 0
     scores = []
