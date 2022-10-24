@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 from actor import Actor
 from critic import Critic
 
-NUM_UPDATES = 200
+NUM_UPDATES = 100
 BATCH_SIZE = 512
 NUM_BATCHES = 10
 BUFFER_SIZE = NUM_BATCHES * BATCH_SIZE
@@ -18,14 +18,16 @@ EPSILON = 0.2
 GAMMA = 0.99
 LEARNING_RATE = 0.001
 
+HIDDEN_SIZE = 128
+
 LOG_FREQUENCY = 10
 RUN_NAME = "ppo"
 
 
 class Agent:
-    def __init__(self, state_size, action_size, num_epochs, epsilon, gamma, lr):
-        self.actor = Actor(state_size, action_size)
-        self.critic = Critic(state_size)
+    def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, lr):
+        self.actor = Actor(state_size, action_size, hidden_size)
+        self.critic = Critic(state_size, hidden_size)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr)
         self.num_epochs = num_epochs
@@ -114,7 +116,8 @@ class Agent:
 def train():
     env = gym.make("LunarLander-v2")
     writer = SummaryWriter("../summaries/" + RUN_NAME)
-    agent = Agent(env.observation_space.shape[0], env.action_space.n, NUM_EPOCHS, EPSILON, GAMMA, LEARNING_RATE)
+    agent = Agent(env.observation_space.shape[0], env.action_space.n, HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
+                  LEARNING_RATE)
 
     score = 0
     scores = []
