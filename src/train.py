@@ -16,7 +16,7 @@ BUFFER_SIZE = NUM_BATCHES * BATCH_SIZE
 NUM_EPOCHS = 20
 EPSILON = 0.2
 GAMMA = 0.99
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0003
 
 HIDDEN_SIZE = 128
 
@@ -85,7 +85,7 @@ class Agent:
 
                 new_probs = dist.log_prob(actions)
                 ratios = torch.exp(new_probs - old_probs)
-                advantages = returns - new_values.detach()
+                advantages = torch.unsqueeze(returns - new_values.detach(), dim=-1)
 
                 unclipped = ratios * advantages
                 clipped = torch.clip(ratios, 1-self.eps, 1+self.eps) * advantages
@@ -114,9 +114,9 @@ class Agent:
 
 
 def train():
-    env = gym.make("LunarLander-v2")
+    env = gym.make("LunarLanderContinuous-v2")
     writer = SummaryWriter("../summaries/" + RUN_NAME)
-    agent = Agent(env.observation_space.shape[0], env.action_space.n, HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
+    agent = Agent(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
                   LEARNING_RATE)
 
     score = 0
