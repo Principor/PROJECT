@@ -5,3 +5,7 @@ Biggest issue encountered was setting up and maintaining version control for con
 2022/10/23
 Finally implemented PPO loss.
 Struggled all week with getting good performance - discovered problem was softmax dim for actor
+
+2022/10/27
+Experimented with GAE, adding entropy to loss, and decaying parameters, without success.
+Moving on to creating custom racing environment

@@ -24,6 +24,16 @@ LOG_FREQUENCY = 10
 RUN_NAME = "ppo"
 
 
+def normalise(x):
+    x -= x.mean()
+    x /= (x.std() + 1e-8)
+    return x
+
+
+def prepare_state(state):
+    return torch.tensor(state)
+
+
 class Agent:
     def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, lr):
         self.actor = Actor(state_size, action_size, hidden_size)
@@ -41,26 +51,33 @@ class Agent:
         self.terminated_memory = []
 
     def choose_action(self, state):
-        state_tensor = torch.tensor(state)
-        dist = self.actor(state_tensor)
-        action = dist.sample()
+        with torch.no_grad():
+            state = prepare_state(state)
+            dist = self.actor(state)
+            action = dist.sample()
+            prob = dist.log_prob(action)
+
         self.state_memory.append(state)
-        self.action_memory.append(action.detach().numpy())
-        self.prob_memory.append(dist.log_prob(action).detach().numpy())
+        self.action_memory.append(action.numpy())
+        self.prob_memory.append(prob.numpy())
+
         return action.detach().numpy()
 
     def remember(self, reward, terminated):
         self.reward_memory.append(reward)
         self.terminated_memory.append(terminated)
 
-    def learn(self, next_state):
-        current_return = self.critic(torch.tensor(next_state)).item()
-        all_returns = []
+    def calculate_returns(self, final_value):
+        current_return = final_value
+        returns = []
         for reward, terminated in reversed(list(zip(self.reward_memory, self.terminated_memory))):
             current_return = reward + self.gamma * current_return * (1 - terminated)
-            all_returns.insert(0, current_return)
-        all_returns = np.array(all_returns)
-        all_returns = (all_returns - all_returns.std()) / all_returns.std()
+            returns.insert(0, current_return)
+        returns = normalise(np.array(returns))
+        return returns
+
+    def learn(self, next_state):
+        all_returns = self.calculate_returns(self.critic(torch.tensor(next_state)).item())
         all_states = np.stack(self.state_memory)
         all_actions = np.stack(self.action_memory)
         all_probs = np.stack(self.prob_memory)
