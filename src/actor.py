@@ -3,6 +3,14 @@ from torch import nn
 
 
 class Actor(nn.Module):
+    """
+    Actor class -  acts as the policy, choosing actions based on the current state
+
+    :param state_size: The length of the state vector
+    :param action_size: The length of the action vector
+    :param hidden_size: Number of nodes in the hidden layer
+    """
+
     def __init__(self, state_size, action_size, hidden_size):
         super(Actor, self).__init__()
         self.base = nn.Sequential(
@@ -16,6 +24,12 @@ class Actor(nn.Module):
         )
 
     def forward(self, state):
+        """
+        Choose action for the current state
+
+        :param state: The current state
+        :return: Distribution of possible actions
+        """
         base = self.base(state)
         mean = self.mean(base)
         std = self.std(base)
