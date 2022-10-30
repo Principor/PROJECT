@@ -12,6 +12,7 @@ dependencies:
   - cpuonly=2.0=0
   - cryptography=37.0.1=py38h21b164f_0
   - freetype=2.10.4=hd328e21_0
+  - idna=3.4=py38haa95532_0
   - intel-openmp=2021.4.0=haa95532_3556
   - jpeg=9e=h2bbff1b_0
   - lerc=3.0=hd77b12b_0
@@ -25,8 +26,8 @@ dependencies:
   - mkl-service=2.4.0=py38h2bbff1b_0
   - mkl_fft=1.3.1=py38h277e83a_0
   - mkl_random=1.2.2=py38hf11a4ad_0
-  - numpy-base=1.23.1=py38hca35cd5_0
   - openssl=1.1.1q=h2bbff1b_0
+  - pillow=9.2.0=py38hdc2b20a_1
   - pip=22.2.2=py38haa95532_0
   - pycparser=2.21=pyhd3eb1b0_0
   - pyopenssl=22.0.0=pyhd3eb1b0_0
@@ -41,7 +42,7 @@ dependencies:
   - tk=8.6.12=h2bbff1b_0
   - torchaudio=0.12.1=py38_cpu
   - torchvision=0.13.1=py38_cpu
-  - typing_extensions=4.3.0=py38haa95532_0
+  - urllib3=1.26.12=py38haa95532_0
   - vc=14.2=h21ff451_1
   - vs2015_runtime=14.27.29016=h5e58377_2
   - wheel=0.37.1=pyhd3eb1b0_0
@@ -68,7 +69,6 @@ dependencies:
     - glfw==2.5.5
     - gym==0.26.2
     - gym-notices==0.0.8
-    - idna==3.4
     - imageio==2.22.1
     - imageio-ffmpeg==0.4.7
     - importlib-metadata==5.0.0
@@ -83,10 +83,10 @@ dependencies:
     - numpy==1.23.3
     - opencv-python==4.6.0.66
     - packaging==21.3
-    - pillow==9.2.0
     - pluggy==1.0.0
     - proglog==0.1.10
     - py==1.11.0
+    - pybullet==3.2.5
     - pygame==2.1.0
     - pyopengl==3.1.6
     - pyparsing==3.0.9
@@ -96,6 +96,5 @@ dependencies:
     - tomli==2.0.1
     - tqdm==4.64.1
     - typing-extensions==4.4.0
-    - urllib3==1.26.12
     - zipp==3.9.0
 prefix: C:\Users\CJews\anaconda3\envs\venv_project
