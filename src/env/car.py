@@ -27,10 +27,6 @@ class Car:
     def get_transform(self):
         return p.getBasePositionAndOrientation(self.body)
 
-    def transform_direction(self, direction):
-        _, rotation = p.getBasePositionAndOrientation(self.body)
-        return util.rotate_vector(rotation, direction)
-
     def apply_force(self, position, force):
         p.applyExternalForce(self.body, linkIndex=-1, posObj=position, forceObj=force, flags=p.WORLD_FRAME)
 
