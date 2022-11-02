@@ -18,9 +18,12 @@ ground = p.createMultiBody(baseMass=0,
                            baseCollisionShapeIndex=plane_collision_shape,
                            baseVisualShapeIndex=plane_visual_shape)
 
-p.changeDynamics(ground, -1, restitution=0.9)
+p.changeDynamics(ground, -1,
+                 restitution=0.9)
+wheel_speed = p.addUserDebugParameter("Wheel speed", -1, 1, 0)
 
 while p.getConnectionInfo()['isConnected']:
     p.stepSimulation()
+    car.set_wheel_speed(p.readUserDebugParameter(wheel_speed))
     car.update(TIME_STEP)
     time.sleep(TIME_STEP)

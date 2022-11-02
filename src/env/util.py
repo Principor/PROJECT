@@ -1,6 +1,10 @@
 import pybullet as p
 
 
+def invert_transform(transform):
+    return p.invertTransform(*transform)
+
+
 def multiply_transforms(transform1, transform2):
     return p.multiplyTransforms(*transform1, *transform2)
 
