@@ -16,3 +16,6 @@ Implemented initial car physics
 
 2022/11/03
 Implemented tire and suspension dynamics
+
+2022/11/06
+Finished basic car behaviour

@@ -27,10 +27,6 @@ def get_transform(body):
     return convert_to_numpy(p.getBasePositionAndOrientation(body))
 
 
-def get_velocity(body):
-    return convert_to_numpy(p.getBaseVelocity(body))
-
-
 def multiply_transforms(transform1, transform2):
     return convert_to_numpy(p.multiplyTransforms(*convert_from_numpy(transform1), *convert_from_numpy(transform2)))
 
@@ -50,5 +46,21 @@ def transform_direction(transform, direction):
     return np.array(new_direction)
 
 
-def cross_vector(vector1, vector2):
-    return np.cross(vector1, vector2)
+def project_vector(vector1, vector2):
+    dot12 = np.dot(vector1, vector2)
+    dot22 = np.dot(vector2, vector2)
+    if dot22 == 0:
+        return make_vector(0, 0, 0)
+    return vector2 * dot12 / dot22
+
+
+def project_to_plane(vector, normal):
+    return vector - project_vector(vector, normal)
+
+
+def normalise(vector):
+    norm = np.linalg.norm(vector)
+    if norm == 0:
+        return np.zeros_like(vector)
+    return vector / norm
+
