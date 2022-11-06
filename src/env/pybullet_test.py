@@ -20,12 +20,12 @@ ground = p.createMultiBody(baseMass=0,
 
 p.changeDynamics(ground, -1,
                  restitution=0.9)
-wheel_speed = p.addUserDebugParameter("Throttle", 0, 1, 0)
-wheel_angle = p.addUserDebugParameter("Steering", -1, 1, 0)
+throttle_param = p.addUserDebugParameter("Throttle", -1, 1, 0)
+steering_param = p.addUserDebugParameter("Steering", -1, 1, 0)
 
 while p.getConnectionInfo()['isConnected']:
     p.stepSimulation()
-    throttle = p.readUserDebugParameter(wheel_speed)
-    steering = p.readUserDebugParameter(wheel_angle)
+    throttle = p.readUserDebugParameter(throttle_param)
+    steering = p.readUserDebugParameter(steering_param)
     car.update(throttle, steering, TIME_STEP)
     time.sleep(TIME_STEP)

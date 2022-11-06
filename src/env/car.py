@@ -24,15 +24,17 @@ class Car:
         self.rear_axle = Axle(self, -1.5, 2.2, 1, 1000, 100, 0.2, 10)
 
         self.horsepower = 50
+        self.max_brake_torque = 300
 
     def update(self, throttle, steering, dt):
-        max_torque = self.horsepower * 7127 / max(self.rear_axle.get_rpm(), 1000)
-        print(max_torque)
+        max_motor_torque = self.horsepower * 7127 / max(self.rear_axle.get_rpm(), 1000)
 
         steering_angle = np.clip(steering, -1, 1) * 0.5
-        motor_torque = np.clip(throttle, 0, 1) * max_torque
+        motor_torque = np.clip(throttle, 0, 1) * max_motor_torque
+        brake_torque = np.clip(-throttle, 0, 1) * self.max_brake_torque
 
         self.front_axle.set_steering_angle(steering_angle)
+        self.front_axle.set_brake_torque(brake_torque)
         self.rear_axle.set_motor_torque(motor_torque)
 
         self.front_axle.update(dt)
@@ -71,6 +73,10 @@ class Axle:
         for wheel in self.wheels:
             wheel.motor_torque = motor_torque / 2
 
+    def set_brake_torque(self, brake_torque):
+        for wheel in self.wheels:
+            wheel.brake_torque = brake_torque
+
     def update(self, dt):
         for wheel in self.wheels:
             wheel.apply_suspension_force(dt)
@@ -80,7 +86,6 @@ class Axle:
 
         for wheel in self.wheels:
             wheel.apply_torque(dt)
-        print()
 
     def get_rpm(self):
         rads_per_second = self.left_wheel.angular_velocity + self.right_wheel.angular_velocity
@@ -104,6 +109,7 @@ class Wheel:
         self.friction_torque = 0
         self.motor_torque = 0
         self.steering_angle = 0
+        self.brake_torque = 0
 
         self.previous_length = 0
         self.reaction_force = 0
@@ -149,9 +155,13 @@ class Wheel:
         self.friction_torque = -long_force * self.radius
 
     def apply_torque(self, dt):
-        total_torque = self.motor_torque + self.friction_torque
         inertia = self.mass * self.radius ** 2 / 2
+
+        total_torque = self.motor_torque + self.friction_torque
         self.angular_velocity += total_torque / inertia * dt
+
+        brake_deceleration = self.brake_torque / inertia * dt
+        self.angular_velocity -= np.clip(self.angular_velocity, -brake_deceleration, brake_deceleration)
 
     def force_from_slip(self, slip):
         B = 10
