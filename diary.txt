@@ -9,3 +9,10 @@ Struggled all week with getting good performance - discovered problem was softma
 2022/10/27
 Experimented with GAE, adding entropy to loss, and decaying parameters, without success.
 Moving on to creating custom racing environment
+
+2022/10/30
+Installed pybullet physics engine
+Implemented initial car physics
+
+2022/11/03
+Implemented tire and suspension dynamics

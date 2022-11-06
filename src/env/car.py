@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import pybullet as p
 
 from env import util
@@ -22,7 +23,18 @@ class Car:
         self.front_axle = Axle(self, 1.5, 2.2, 1, 1000, 100, 0.2, 10)
         self.rear_axle = Axle(self, -1.5, 2.2, 1, 1000, 100, 0.2, 10)
 
-    def update(self, dt):
+        self.horsepower = 50
+
+    def update(self, throttle, steering, dt):
+        max_torque = self.horsepower * 7127 / max(self.rear_axle.get_rpm(), 1000)
+        print(max_torque)
+
+        steering_angle = np.clip(steering, -1, 1) * 0.5
+        motor_torque = np.clip(throttle, 0, 1) * max_torque
+
+        self.front_axle.set_steering_angle(steering_angle)
+        self.rear_axle.set_motor_torque(motor_torque)
+
         self.front_axle.update(dt)
         self.rear_axle.update(dt)
 
@@ -39,14 +51,6 @@ class Car:
     def apply_force(self, position, force):
         p.applyExternalForce(self.body, linkIndex=-1, posObj=position, forceObj=force, flags=p.WORLD_FRAME)
 
-    def set_wheel_speed(self, wheel_speed):
-        for wheel in self.rear_axle.wheels + self.front_axle.wheels:
-            wheel.angular_velocity = wheel_speed * 20
-
-    def set_wheel_angle(self, wheel_angle):
-        for wheel in self.front_axle.wheels:
-            wheel.steering_angle = wheel_angle * 0.5
-
 
 class Axle:
     def __init__(self, car, axle_position, axle_width, spring_length, spring_stiffness, damper_stiffness, wheel_radius,
@@ -59,12 +63,29 @@ class Axle:
                                 spring_stiffness, damper_stiffness, wheel_radius, wheel_mass)
         self.wheels = [self.left_wheel, self.right_wheel]
 
+    def set_steering_angle(self, steering_angle):
+        for wheel in self.wheels:
+            wheel.steering_angle = steering_angle
+
+    def set_motor_torque(self, motor_torque):
+        for wheel in self.wheels:
+            wheel.motor_torque = motor_torque / 2
+
     def update(self, dt):
         for wheel in self.wheels:
             wheel.apply_suspension_force(dt)
 
         for wheel in self.wheels:
             wheel.apply_tire_force()
+
+        for wheel in self.wheels:
+            wheel.apply_torque(dt)
+        print()
+
+    def get_rpm(self):
+        rads_per_second = self.left_wheel.angular_velocity + self.right_wheel.angular_velocity
+        rpm = rads_per_second * 30 / math.pi
+        return rpm
 
 
 class Wheel:
@@ -79,6 +100,9 @@ class Wheel:
         self.mass = mass
 
         self.angular_velocity = 0
+
+        self.friction_torque = 0
+        self.motor_torque = 0
         self.steering_angle = 0
 
         self.previous_length = 0
@@ -122,7 +146,12 @@ class Wheel:
         final_force = util.transform_direction(wheel_transform, util.make_vector(lat_force, long_force, 0))
         self.car.apply_force(self.contact_position, final_force)
 
-        print(local_velocity, lat_slip, lat_force)
+        self.friction_torque = -long_force * self.radius
+
+    def apply_torque(self, dt):
+        total_torque = self.motor_torque + self.friction_torque
+        inertia = self.mass * self.radius ** 2 / 2
+        self.angular_velocity += total_torque / inertia * dt
 
     def force_from_slip(self, slip):
         B = 10
