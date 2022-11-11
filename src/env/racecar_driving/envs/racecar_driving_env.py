@@ -42,6 +42,12 @@ class RacecarDrivingEnv(gym.Env):
 
         self.car = None
 
+        goal_shape = p.createVisualShape(p.GEOM_SPHERE, radius=1, rgbaColor=[0, 1, 0, 1])
+        self.goal_body = p.createMultiBody(baseMass=0,
+                                           basePosition=(0, 0, 1),
+                                           baseVisualShapeIndex=goal_shape)
+        self.goal_position = (0, 0)
+
     def step(self, action):
         p.stepSimulation()
         self.car.update(-1, 0, TIME_STEP)
@@ -51,6 +57,7 @@ class RacecarDrivingEnv(gym.Env):
         if self.car is not None:
             self.car.remove()
         self.car = car.Car()
+        self.move_goal()
         return self.observation_space.sample(), {}
 
     def render(self):
@@ -58,3 +65,15 @@ class RacecarDrivingEnv(gym.Env):
 
     def close(self):
         p.disconnect()
+
+    def move_goal(self):
+        car_x, car_y = self.get_car_position()
+        valid_position = False
+        while not valid_position:
+            x, y = self.goal_position = (np.random.random(2) - 0.5) * 20
+            p.resetBasePositionAndOrientation(self.goal_body, posObj=(x, y, 1), ornObj=(0, 0, 0, 1))
+            valid_position = (x-car_x)**2 + (y-car_y)**2 > 10
+
+    def get_car_position(self):
+        (x, y, _), _ = self.car.get_transform()
+        return x, y
