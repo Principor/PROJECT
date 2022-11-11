@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pybullet as p
 
-from env import util
+from env.racecar_driving.resources import util
 
 
 class Car:
