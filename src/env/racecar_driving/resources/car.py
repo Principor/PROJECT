@@ -18,10 +18,10 @@ class Car:
         self.body = p.createMultiBody(baseMass=100,
                                       baseCollisionShapeIndex=body_collision_shape,
                                       baseVisualShapeIndex=body_visual_shape,
-                                      basePosition=[0, 0, 3])
+                                      basePosition=[0, 0, 1.5])
 
-        self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 1000, 100, 0.2, 10)
-        self.rear_axle = Axle(self, -1.5, 2.2, -0.25, 1, 1000, 100, 0.2, 10)
+        self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10)
+        self.rear_axle = Axle(self, -1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10)
 
         self.horsepower = 50
         self.max_brake_torque = 300
@@ -45,6 +45,9 @@ class Car:
 
     def apply_force(self, position, force):
         p.applyExternalForce(self.body, linkIndex=-1, posObj=position, forceObj=force, flags=p.WORLD_FRAME)
+
+    def remove(self):
+        p.removeBody(self.body)
 
 
 class Axle:
