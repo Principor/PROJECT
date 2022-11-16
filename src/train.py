@@ -210,20 +210,20 @@ def train():
                   LEARNING_RATE)
 
     # Save the score of each episode to track progress
-    score = 0
     scores = []
+    score = 0
+
+    observation, info = env.reset()
     for update in range(NUM_UPDATES):
-
-        observation, info = env.reset()
-
         for update_step in range(BUFFER_SIZE):
             action = agent.choose_action(observation)
             observation, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
             score += reward
-            agent.remember(reward, terminated)
+            agent.remember(reward, done)
 
             # Reset environment if episode has terminated
-            if terminated:
+            if done:
                 scores.append(score)
                 writer.add_scalar("Score", score, update * BUFFER_SIZE + update_step)
                 score = 0

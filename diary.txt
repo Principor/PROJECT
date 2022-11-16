@@ -9,3 +9,6 @@ Struggled all week with getting good performance - discovered problem was softma
 2022/10/27
 Experimented with GAE, adding entropy to loss, and decaying parameters, without success.
 Moving on to creating custom racing environment
+
+2022/11/15
+Discovered that ignoring "truncated" output was slowing performance dramatically and leading to worse training.
