@@ -26,6 +26,16 @@ LOG_FREQUENCY = 10
 RUN_NAME = "ppo"
 
 
+def make_env(gym_id):
+    def thunk():
+        env = gym.make(gym_id)
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        env = gym.wrappers.NormalizeReward(env)
+        env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
+        return env
+    return thunk
+
+
 def normalise(x):
     """
     Normalise an array to have a mean of 0 and standard deviation of 1
@@ -126,7 +136,7 @@ class Agent:
         for reward, terminated in reversed(list(zip(self.reward_memory, self.terminated_memory))):
             current_return = reward + self.gamma * current_return * (1 - terminated)
             returns.insert(0, current_return)   # Prepend as returns are calculated backwards
-        returns = normalise(np.array(returns))
+        returns = np.array(returns)
         return returns
 
     def learn(self, next_state):
@@ -173,7 +183,12 @@ class Agent:
                 # Calculate components of actor loss
                 new_probs = dist.log_prob(actions)
                 ratios = torch.exp(new_probs - old_probs)
-                advantages = torch.unsqueeze(returns - new_values.detach(), dim=-1)
+
+                advantages = returns - new_values.detach()
+                advantages -= torch.mean(advantages)
+                advantages /= torch.std(advantages) + 1e-8
+                advantages = torch.unsqueeze(advantages, dim=-1)
+
                 unclipped = ratios * advantages
                 clipped = torch.clip(ratios, 1-self.eps, 1+self.eps) * advantages
 
@@ -210,14 +225,13 @@ def train():
     """
     Train the model
     """
-    envs = gym.vector.make("LunarLanderContinuous-v2", num_envs=NUM_ENVS)
+    envs = gym.vector.AsyncVectorEnv([make_env('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
     writer = SummaryWriter("../summaries/" + RUN_NAME)
     agent = Agent(envs.observation_space.shape[1], envs.action_space.shape[1], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
                   LEARNING_RATE)
 
     # Save the score of each episode to track progress
-    saved_scores = []
-    current_scores = np.zeros(NUM_ENVS)
+    scores = []
 
     observation, info = envs.reset()
     for update in range(NUM_UPDATES):
@@ -225,22 +239,21 @@ def train():
             action = agent.choose_action(observation)
             observation, reward, terminated, truncated, info = envs.step(action)
             done = np.logical_or(terminated, truncated)
-            current_scores += reward
             agent.remember(reward, done)
 
-            for i in range(NUM_ENVS):
-                if done[i]:
-                    saved_scores.append(current_scores[i])
-
-            current_scores *= 1 - done
+            if 'final_info' in info.keys():
+                for item in info['final_info']:
+                    if item is None:
+                        continue
+                    scores.append(item['episode']['r'])
 
         # Update models
         agent.learn(observation)
 
         # Output progress
         if (update + 1) % LOG_FREQUENCY == 0:
-            print("Update: {}\tAvg. score: {}".format(update, np.mean(saved_scores)))
-            saved_scores.clear()
+            print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
+            scores.clear()
 
     envs.close()
     writer.close()
