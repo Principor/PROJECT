@@ -18,6 +18,7 @@ BATCH_SIZE = 512
 NUM_EPOCHS = 20
 EPSILON = 0.2
 GAMMA = 0.99
+GAE_LAMBDA = 0.95
 LEARNING_RATE = 0.0003
 
 HIDDEN_SIZE = 128
@@ -72,7 +73,7 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, lr):
+    def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, gae_lambda, lr):
         # Create models
         self.actor = Actor(state_size, action_size, hidden_size)
         self.critic = Critic(state_size, hidden_size)
@@ -83,6 +84,7 @@ class Agent:
         self.num_epochs = num_epochs
         self.eps = epsilon
         self.gamma = gamma
+        self.gae_lambda = gae_lambda
 
         # Initialise memory
         self.state_memory = []
@@ -141,7 +143,7 @@ class Agent:
         for step in reversed(range(length)):
             mask = 1 - self.terminated_memory[step]
             delta = self.reward_memory[step] + self.gamma * next_values[step] * mask - self.value_memory[step]
-            gae = delta + 0.95 * self.gamma * gae * mask
+            gae = delta + self.gae_lambda * self.gamma * gae * mask
             returns.insert(0, gae + self.value_memory[step])
         return np.stack(returns)
 
@@ -235,7 +237,7 @@ def train():
     envs = gym.vector.AsyncVectorEnv([make_env('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
     writer = SummaryWriter("../summaries/" + RUN_NAME)
     agent = Agent(envs.observation_space.shape[1], envs.action_space.shape[1], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
-                  LEARNING_RATE)
+                  GAE_LAMBDA, LEARNING_RATE)
 
     # Save the score of each episode to track progress
     scores = []
