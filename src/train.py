@@ -1,4 +1,5 @@
 import os
+import time
 
 import gym
 import torch
@@ -10,9 +11,9 @@ from critic import Critic
 
 # Parameters
 NUM_UPDATES = 100
+NUM_ENVS = 4
+NUM_STEPS = 1024
 BATCH_SIZE = 512
-NUM_BATCHES = 10
-BUFFER_SIZE = NUM_BATCHES * BATCH_SIZE
 
 NUM_EPOCHS = 20
 EPSILON = 0.2
@@ -120,7 +121,7 @@ class Agent:
         :param final_value: The predicted value of the next state
         :return: The list of returns from each step
         """
-        current_return = final_value
+        current_return = final_value.detach().numpy().squeeze()
         returns = []
         for reward, terminated in reversed(list(zip(self.reward_memory, self.terminated_memory))):
             current_return = reward + self.gamma * current_return * (1 - terminated)
@@ -137,17 +138,22 @@ class Agent:
         """
 
         # Collect each sequence into a numpy array
-        all_returns = self.calculate_returns(self.critic(torch.tensor(next_state)).item())
-        all_states = np.stack(self.state_memory)
-        all_actions = np.stack(self.action_memory)
-        all_probs = np.stack(self.prob_memory)
+        sequences = (
+            self.calculate_returns(self.critic(torch.tensor(next_state))),
+            np.stack(self.state_memory),
+            np.stack(self.action_memory),
+            np.stack(self.prob_memory)
+        )
+        sequences = (np.concatenate(sequence, axis=0) for sequence in sequences)
+        all_returns, all_states, all_actions, all_probs = sequences
 
         for _ in range(self.num_epochs):
 
             # Generate indices for each batch
-            indices = np.arange(BUFFER_SIZE)
+            size = all_returns.shape[0]
+            indices = np.arange(size)
             np.random.shuffle(indices)
-            indices = np.split(indices, NUM_BATCHES)
+            indices = np.split(indices, all_returns.shape[0] // BATCH_SIZE)
 
             # Create each batch
             batches = [(
@@ -204,43 +210,44 @@ def train():
     """
     Train the model
     """
-    env = gym.make("LunarLanderContinuous-v2")
+    envs = gym.vector.make("LunarLanderContinuous-v2", num_envs=NUM_ENVS)
     writer = SummaryWriter("../summaries/" + RUN_NAME)
-    agent = Agent(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
+    agent = Agent(envs.observation_space.shape[1], envs.action_space.shape[1], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
                   LEARNING_RATE)
 
     # Save the score of each episode to track progress
-    scores = []
-    score = 0
+    saved_scores = []
+    current_scores = np.zeros(NUM_ENVS)
 
-    observation, info = env.reset()
+    observation, info = envs.reset()
     for update in range(NUM_UPDATES):
-        for update_step in range(BUFFER_SIZE):
+        for update_step in range(NUM_STEPS):
             action = agent.choose_action(observation)
-            observation, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            score += reward
+            observation, reward, terminated, truncated, info = envs.step(action)
+            done = np.logical_or(terminated, truncated)
+            current_scores += reward
             agent.remember(reward, done)
 
-            # Reset environment if episode has terminated
-            if done:
-                scores.append(score)
-                writer.add_scalar("Score", score, update * BUFFER_SIZE + update_step)
-                score = 0
-                observation, info = env.reset()
+            for i in range(NUM_ENVS):
+                if done[i]:
+                    saved_scores.append(current_scores[i])
+
+            current_scores *= 1 - done
 
         # Update models
         agent.learn(observation)
 
         # Output progress
         if (update + 1) % LOG_FREQUENCY == 0:
-            print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
-            scores.clear()
+            print("Update: {}\tAvg. score: {}".format(update, np.mean(saved_scores)))
+            saved_scores.clear()
 
-    env.close()
+    envs.close()
     writer.close()
     agent.save_model()
 
 
 if __name__ == '__main__':
+    start_time = time.time()
     train()
+    print("Time taken: {}".format(time.time() - start_time))
