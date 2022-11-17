@@ -88,6 +88,7 @@ class Agent:
         self.state_memory = []
         self.action_memory = []
         self.prob_memory = []
+        self.value_memory = []
         self.reward_memory = []
         self.terminated_memory = []
 
@@ -104,6 +105,7 @@ class Agent:
         with torch.no_grad():
             state = prepare_state(state)
             dist = self.actor(state)
+            value = self.critic(state)
             action = dist.sample()
             prob = dist.log_prob(action)
 
@@ -111,6 +113,7 @@ class Agent:
         self.state_memory.append(state)
         self.action_memory.append(action.numpy())
         self.prob_memory.append(prob.numpy())
+        self.value_memory.append(value.numpy().squeeze())
 
         return action.detach().numpy()
 
@@ -131,13 +134,16 @@ class Agent:
         :param final_value: The predicted value of the next state
         :return: The list of returns from each step
         """
-        current_return = final_value.detach().numpy().squeeze()
+        length = len(self.reward_memory)
+        next_values = self.value_memory[1:] + [final_value.detach().numpy().squeeze()]
         returns = []
-        for reward, terminated in reversed(list(zip(self.reward_memory, self.terminated_memory))):
-            current_return = reward + self.gamma * current_return * (1 - terminated)
-            returns.insert(0, current_return)   # Prepend as returns are calculated backwards
-        returns = np.array(returns)
-        return returns
+        gae = 0
+        for step in reversed(range(length)):
+            mask = 1 - self.terminated_memory[step]
+            delta = self.reward_memory[step] + self.gamma * next_values[step] * mask - self.value_memory[step]
+            gae = delta + 0.95 * self.gamma * gae * mask
+            returns.insert(0, gae + self.value_memory[step])
+        return np.stack(returns)
 
     def learn(self, next_state):
         """
@@ -148,14 +154,17 @@ class Agent:
         """
 
         # Collect each sequence into a numpy array
+        returns = self.calculate_returns(self.critic(torch.tensor(next_state)))
+
         sequences = (
-            self.calculate_returns(self.critic(torch.tensor(next_state))),
+            returns,
+            normalise(returns - np.stack(self.value_memory)),
             np.stack(self.state_memory),
             np.stack(self.action_memory),
             np.stack(self.prob_memory)
         )
         sequences = (np.concatenate(sequence, axis=0) for sequence in sequences)
-        all_returns, all_states, all_actions, all_probs = sequences
+        all_returns, all_advantages, all_states, all_actions, all_probs = sequences
 
         for _ in range(self.num_epochs):
 
@@ -168,13 +177,15 @@ class Agent:
             # Create each batch
             batches = [(
                 torch.tensor(all_returns[batch_indices], dtype=torch.float32),
+                torch.tensor(all_advantages[batch_indices], dtype=torch.float32),
                 torch.tensor(all_states[batch_indices]),
                 torch.tensor(all_actions[batch_indices]),
                 torch.tensor(all_probs[batch_indices])
             ) for batch_indices in indices]
 
             for batch in batches:
-                returns, states, actions, old_probs = batch
+                returns, advantages, states, actions, old_probs = batch
+                advantages = torch.unsqueeze(advantages, dim=-1)
 
                 # Get current distribution and value from models
                 dist = self.actor(states)
@@ -183,11 +194,6 @@ class Agent:
                 # Calculate components of actor loss
                 new_probs = dist.log_prob(actions)
                 ratios = torch.exp(new_probs - old_probs)
-
-                advantages = returns - new_values.detach()
-                advantages -= torch.mean(advantages)
-                advantages /= torch.std(advantages) + 1e-8
-                advantages = torch.unsqueeze(advantages, dim=-1)
 
                 unclipped = ratios * advantages
                 clipped = torch.clip(ratios, 1-self.eps, 1+self.eps) * advantages
@@ -208,6 +214,7 @@ class Agent:
         self.state_memory.clear()
         self.action_memory.clear()
         self.prob_memory.clear()
+        self.value_memory.clear()
         self.reward_memory.clear()
         self.terminated_memory.clear()
 
