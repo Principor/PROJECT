@@ -251,10 +251,13 @@ def train():
             agent.remember(reward, done)
 
             if 'final_info' in info.keys():
-                for item in info['final_info']:
+                for i in range(NUM_ENVS):
+                    item = info['final_info'][i]
                     if item is None:
                         continue
-                    scores.append(item['episode']['r'])
+                    score = item['episode']['r']
+                    scores.append(score)
+                    writer.add_scalar('score', score, (update * NUM_STEPS + update_step) * NUM_ENVS + i)
 
         # Update models
         agent.learn(observation)
