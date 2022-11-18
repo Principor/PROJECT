@@ -5,6 +5,7 @@ import gym
 import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
 from model import Model
 
@@ -234,27 +235,26 @@ def train():
     """
     Train the model
     """
-    envs = gym.vector.AsyncVectorEnv([make_env('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: gym.make('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
+    envs = VecMonitor(envs)
+    envs = VecNormalize(envs, gamma=GAMMA)
     writer = SummaryWriter("../summaries/" + RUN_NAME)
-    agent = Agent(envs.observation_space.shape[1], envs.action_space.shape[1], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
                   GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []
 
-    observation, info = envs.reset()
+    observation = envs.reset()
     for update in range(NUM_UPDATES):
         for update_step in range(NUM_STEPS):
             action = agent.choose_action(observation)
-            observation, reward, terminated, truncated, info = envs.step(action)
-            done = np.logical_or(terminated, truncated)
+            observation, reward, done, info = envs.step(action)
             agent.remember(reward, done)
 
-            if 'final_info' in info.keys():
-                for i in range(NUM_ENVS):
-                    item = info['final_info'][i]
-                    if item is None:
-                        continue
+            for i in range(NUM_ENVS):
+                item = info[i]
+                if 'episode' in item.keys():
                     score = item['episode']['r']
                     scores.append(score)
                     writer.add_scalar('score', score, (update * NUM_STEPS + update_step) * NUM_ENVS + i)
@@ -266,7 +266,7 @@ def train():
         if (update + 1) % LOG_FREQUENCY == 0:
             print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
             scores.clear()
-
+    envs.save("../models/normaliser")
     envs.close()
     writer.close()
     agent.save_model()

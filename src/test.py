@@ -1,5 +1,6 @@
 import gym
 import torch
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from model import Model
 
@@ -11,13 +12,16 @@ if __name__ == '__main__':
     """
     Runs the tests
     """
-    env = gym.make("LunarLanderContinuous-v2", render_mode="human")
+
+    env = DummyVecEnv([lambda: gym.make("LunarLanderContinuous-v2")])
+    env = VecNormalize.load("../models/normaliser", env)
     actor = Model(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE)
     actor.load_state_dict(torch.load("../models/ppo/model.pth"))
 
-    observation, info = env.reset()
+    observation = env.reset()
     for _ in range(NUM_STEPS):
         action = actor(torch.tensor(observation, dtype=torch.float32))[0].sample().detach().numpy()
-        observation, reward, terminated, truncated, info = env.step(action)
-        if terminated or truncated:
-            observation, info = env.reset()
+        observation, reward, done, info = env.step(action)
+        env.render(mode='human')
+        if done:
+            observation = env.reset()
