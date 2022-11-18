@@ -21,6 +21,7 @@ GAMMA = 0.99
 GAE_LAMBDA = 0.95
 CRITIC_DISCOUNT = 0.5
 LEARNING_RATE = 0.0003
+DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 HIDDEN_SIZE = 128
@@ -55,19 +56,25 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, gae_lambda, critic_discount,
-                 lr, max_grad_norm):
+    def __init__(self, state_size, action_size, hidden_size, num_updates, batch_size, num_epochs, epsilon, gamma,
+                 gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
         self.model = Model(state_size, action_size, hidden_size)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
 
         # Store parameters
+        self.num_updates = num_updates
+        self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.eps = epsilon
         self.gamma = gamma
         self.gae_lambda = gae_lambda
         self.critic_discount = critic_discount
+        self.lr = lr
+        self.decay_lr = decay_lr
         self.max_grad_norm = max_grad_norm
+
+        self.updates_completed = 0
 
         # Initialise memory
         self.state_memory = []
@@ -151,13 +158,19 @@ class Agent:
         sequences = (np.concatenate(sequence, axis=0) for sequence in sequences)
         all_returns, all_advantages, all_states, all_actions, all_probs = sequences
 
+        # Decay learning rate
+        if self.decay_lr:
+            self.optimizer.param_groups[0]['lr'] = self.lr * (1 - self.updates_completed / self.num_updates)
+        self.updates_completed += 1
+
         for _ in range(self.num_epochs):
 
             # Generate indices for each batch
             size = all_returns.shape[0]
             indices = np.arange(size)
             np.random.shuffle(indices)
-            indices = np.split(indices, all_returns.shape[0] // BATCH_SIZE)
+
+            indices = np.split(indices, all_returns.shape[0] // self.batch_size)
 
             # Create each batch
             batches = [(
@@ -224,8 +237,8 @@ def train():
 
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 
-    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
-                  GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, MAX_GRAD_NORM)
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_UPDATES, BATCH_SIZE,
+                  NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []
