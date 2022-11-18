@@ -4,7 +4,7 @@ from torch import nn
 
 class Model(nn.Module):
     """
-    Actor class -  acts as the policy, choosing actions based on the current state
+    Model class, contains actor network and critic network for generating actions and evaluating values respectively
 
     :param state_size: The length of the state vector
     :param action_size: The length of the action vector
@@ -31,10 +31,10 @@ class Model(nn.Module):
 
     def forward(self, state):
         """
-        Choose action for the current state
+        Generate action distribution and evaluate value for given state
 
         :param state: The current state
-        :return: Distribution of possible actions
+        :return: Distribution of possible actions, value of current state
         """
         base = self.actor_base(state)
         mean = self.mean(base)

@@ -12,3 +12,6 @@ Moving on to creating custom racing environment
 
 2022/11/15
 Discovered that ignoring "truncated" output was slowing performance dramatically and leading to worse training.
+
+2022/11/17
+Finally finished complete implementation of PPO.
