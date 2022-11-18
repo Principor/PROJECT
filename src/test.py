@@ -10,11 +10,11 @@ HIDDEN_SIZE = 128
 
 if __name__ == '__main__':
     """
-    Runs the tests
+    Test the trained model
     """
 
     env = DummyVecEnv([lambda: gym.make("LunarLanderContinuous-v2")])
-    env = VecNormalize.load("../models/normaliser", env)
+    env = VecNormalize.load("../models/normaliser", env)    # Load normaliser generated during training so inputs match
     actor = Model(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE)
     actor.load_state_dict(torch.load("../models/ppo/model.pth"))
 

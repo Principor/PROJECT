@@ -29,16 +29,6 @@ LOG_FREQUENCY = 10
 RUN_NAME = "ppo"
 
 
-def make_env(gym_id):
-    def thunk():
-        env = gym.make(gym_id)
-        env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = gym.wrappers.NormalizeReward(env)
-        env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
-        return env
-    return thunk
-
-
 def normalise(x):
     """
     Normalise an array to have a mean of 0 and standard deviation of 1
@@ -49,16 +39,6 @@ def normalise(x):
     x -= x.mean()
     x /= (x.std() + 1e-8)   # Avoid divide by 0 error
     return x
-
-
-def prepare_state(state):
-    """
-    Convert array into tensor
-
-    :param state: Array representation of state
-    :return: Tensor representation of state
-    """
-    return torch.tensor(state)
 
 
 class Agent:
@@ -99,8 +79,8 @@ class Agent:
 
     def choose_action(self, state):
         """
-        Choose an action for the current state, and remember the state, action, and log probability of the action under
-        the current policy.
+        Choose an action for the current state, and remember the state, action, log probability of the action and
+        estimated value.
 
         :param state: The current state
         :return: Chosen action vector
@@ -108,7 +88,7 @@ class Agent:
 
         # Generate action
         with torch.no_grad():
-            state = prepare_state(state)
+            state = torch.tensor(state)
             dist, value = self.model(state)
             action = dist.sample()
             prob = dist.log_prob(action)
@@ -134,6 +114,7 @@ class Agent:
     def calculate_returns(self, final_value):
         """
         Calculate the discounted returns from the experienced rewards
+        This uses Generalised Advantage Estimation in order to reduce variance in the returns
 
         :param final_value: The predicted value of the next state
         :return: The list of returns from each step
@@ -157,9 +138,9 @@ class Agent:
         cut-off point
         """
 
-        # Collect each sequence into a numpy array
         returns = self.calculate_returns(self.model(torch.tensor(next_state))[1])
 
+        # Stack and reshape all sequences
         sequences = (
             returns,
             normalise(returns - np.stack(self.value_memory)),
@@ -235,10 +216,14 @@ def train():
     """
     Train the model
     """
+
+    # Vectorise and wrap environment
     envs = SubprocVecEnv([lambda: gym.make('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
+
     writer = SummaryWriter("../summaries/" + RUN_NAME)
+
     agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
                   GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, MAX_GRAD_NORM)
 
@@ -252,6 +237,7 @@ def train():
             observation, reward, done, info = envs.step(action)
             agent.remember(reward, done)
 
+            # Record the return of each finished episode
             for i in range(NUM_ENVS):
                 item = info[i]
                 if 'episode' in item.keys():
@@ -266,7 +252,8 @@ def train():
         if (update + 1) % LOG_FREQUENCY == 0:
             print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
             scores.clear()
-    envs.save("../models/normaliser")
+
+    envs.save("../models/normaliser")   # Save normaliser
     envs.close()
     writer.close()
     agent.save_model()
