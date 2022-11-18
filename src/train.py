@@ -6,8 +6,7 @@ import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from actor import Actor
-from critic import Critic
+from model import Model
 
 # Parameters
 NUM_UPDATES = 200
@@ -78,10 +77,8 @@ class Agent:
     def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, gae_lambda, critic_discount,
                  lr, max_grad_norm):
         # Create models
-        self.actor = Actor(state_size, action_size, hidden_size)
-        self.critic = Critic(state_size, hidden_size)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr)
+        self.model = Model(state_size, action_size, hidden_size)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
 
         # Store parameters
         self.num_epochs = num_epochs
@@ -111,8 +108,7 @@ class Agent:
         # Generate action
         with torch.no_grad():
             state = prepare_state(state)
-            dist = self.actor(state)
-            value = self.critic(state)
+            dist, value = self.model(state)
             action = dist.sample()
             prob = dist.log_prob(action)
 
@@ -161,7 +157,7 @@ class Agent:
         """
 
         # Collect each sequence into a numpy array
-        returns = self.calculate_returns(self.critic(torch.tensor(next_state)))
+        returns = self.calculate_returns(self.model(torch.tensor(next_state))[1])
 
         sequences = (
             returns,
@@ -195,8 +191,8 @@ class Agent:
                 advantages = torch.unsqueeze(advantages, dim=-1)
 
                 # Get current distribution and value from models
-                dist = self.actor(states)
-                new_values = torch.squeeze(self.critic(states))
+                dist, new_values = self.model(states)
+                new_values = torch.squeeze(new_values)
 
                 # Calculate components of actor loss
                 new_probs = dist.log_prob(actions)
@@ -211,13 +207,10 @@ class Agent:
                 loss = actor_loss + self.critic_discount * critic_loss
 
                 # Back propagation
-                self.actor_optimizer.zero_grad()
-                self.critic_optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 loss.backward()
-                self.actor_optimizer.step()
-                self.critic_optimizer.step()
-                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
-                torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
 
         # Clear all memory
         self.state_memory.clear()
@@ -234,7 +227,7 @@ class Agent:
         path = "../models/{}".format(RUN_NAME)
         if not os.path.exists(path):
             os.makedirs(path)
-        torch.save(self.actor.state_dict(), path + "/actor.pth")
+        torch.save(self.model.state_dict(), path + "/model.pth")
 
 
 def train():

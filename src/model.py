@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 
-class Actor(nn.Module):
+class Model(nn.Module):
     """
     Actor class -  acts as the policy, choosing actions based on the current state
 
@@ -12,8 +12,8 @@ class Actor(nn.Module):
     """
 
     def __init__(self, state_size, action_size, hidden_size):
-        super(Actor, self).__init__()
-        self.base = nn.Sequential(
+        super(Model, self).__init__()
+        self.actor_base = nn.Sequential(
             nn.Linear(state_size, hidden_size),
             nn.ReLU(),
         )
@@ -23,6 +23,12 @@ class Actor(nn.Module):
             nn.Softplus()
         )
 
+        self.critic = nn.Sequential(
+            nn.Linear(state_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1),
+        )
+
     def forward(self, state):
         """
         Choose action for the current state
@@ -30,8 +36,9 @@ class Actor(nn.Module):
         :param state: The current state
         :return: Distribution of possible actions
         """
-        base = self.base(state)
+        base = self.actor_base(state)
         mean = self.mean(base)
         std = self.std(base)
-        return torch.distributions.Normal(mean, std)
+        value = self.critic(state)
+        return torch.distributions.Normal(mean, std), value
 
