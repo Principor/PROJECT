@@ -10,16 +10,18 @@ from actor import Actor
 from critic import Critic
 
 # Parameters
-NUM_UPDATES = 100
+NUM_UPDATES = 200
 NUM_ENVS = 4
-NUM_STEPS = 1024
-BATCH_SIZE = 512
+NUM_STEPS = 512
+BATCH_SIZE = 64
 
-NUM_EPOCHS = 20
+NUM_EPOCHS = 10
 EPSILON = 0.2
 GAMMA = 0.99
 GAE_LAMBDA = 0.95
+CRITIC_DISCOUNT = 0.5
 LEARNING_RATE = 0.0003
+MAX_GRAD_NORM = 0.5
 
 HIDDEN_SIZE = 128
 
@@ -73,7 +75,8 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, gae_lambda, lr):
+    def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, gae_lambda, critic_discount,
+                 lr, max_grad_norm):
         # Create models
         self.actor = Actor(state_size, action_size, hidden_size)
         self.critic = Critic(state_size, hidden_size)
@@ -85,6 +88,8 @@ class Agent:
         self.eps = epsilon
         self.gamma = gamma
         self.gae_lambda = gae_lambda
+        self.critic_discount = critic_discount
+        self.max_grad_norm = max_grad_norm
 
         # Initialise memory
         self.state_memory = []
@@ -203,7 +208,7 @@ class Agent:
                 # Calculate actual loss
                 actor_loss = -torch.min(unclipped, clipped).mean()
                 critic_loss = torch.nn.functional.mse_loss(returns, new_values).mean()
-                loss = actor_loss + critic_loss
+                loss = actor_loss + self.critic_discount * critic_loss
 
                 # Back propagation
                 self.actor_optimizer.zero_grad()
@@ -211,6 +216,8 @@ class Agent:
                 loss.backward()
                 self.actor_optimizer.step()
                 self.critic_optimizer.step()
+                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
 
         # Clear all memory
         self.state_memory.clear()
@@ -237,7 +244,7 @@ def train():
     envs = gym.vector.AsyncVectorEnv([make_env('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
     writer = SummaryWriter("../summaries/" + RUN_NAME)
     agent = Agent(envs.observation_space.shape[1], envs.action_space.shape[1], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
-                  GAE_LAMBDA, LEARNING_RATE)
+                  GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []
