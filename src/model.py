@@ -18,9 +18,8 @@ class Model(nn.Module):
             nn.ReLU(),
         )
         self.mean = nn.Linear(hidden_size, action_size)
-        self.std = nn.Sequential(
-            nn.Linear(hidden_size, action_size),
-            nn.Softplus()
+        self.log_std = nn.Sequential(
+            nn.Linear(hidden_size, action_size)
         )
 
         self.critic = nn.Sequential(
@@ -38,7 +37,7 @@ class Model(nn.Module):
         """
         base = self.actor_base(state)
         mean = self.mean(base)
-        std = self.std(base)
+        std = self.log_std(base).exp()
         value = self.critic(state)
         return torch.distributions.Normal(mean, std), value
 
