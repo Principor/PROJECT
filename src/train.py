@@ -1,23 +1,28 @@
 import os
+import time
 
 import gym
 import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
-from actor import Actor
-from critic import Critic
+from model import Model
 
 # Parameters
-NUM_UPDATES = 100
-BATCH_SIZE = 512
-NUM_BATCHES = 10
-BUFFER_SIZE = NUM_BATCHES * BATCH_SIZE
+NUM_UPDATES = 200
+NUM_ENVS = 4
+NUM_STEPS = 512
+BATCH_SIZE = 64
 
-NUM_EPOCHS = 20
+NUM_EPOCHS = 10
 EPSILON = 0.2
 GAMMA = 0.99
+GAE_LAMBDA = 0.95
+CRITIC_DISCOUNT = 0.5
 LEARNING_RATE = 0.0003
+DECAY_LR = True
+MAX_GRAD_NORM = 0.5
 
 HIDDEN_SIZE = 128
 
@@ -37,16 +42,6 @@ def normalise(x):
     return x
 
 
-def prepare_state(state):
-    """
-    Convert array into tensor
-
-    :param state: Array representation of state
-    :return: Tensor representation of state
-    """
-    return torch.tensor(state)
-
-
 class Agent:
     """
     Agent class, runs the Proximal Policy Algorithm
@@ -61,29 +56,38 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, hidden_size, num_epochs, epsilon, gamma, lr):
+    def __init__(self, state_size, action_size, hidden_size, num_updates, batch_size, num_epochs, epsilon, gamma,
+                 gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
-        self.actor = Actor(state_size, action_size, hidden_size)
-        self.critic = Critic(state_size, hidden_size)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr)
+        self.model = Model(state_size, action_size, hidden_size)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
 
         # Store parameters
+        self.num_updates = num_updates
+        self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.eps = epsilon
         self.gamma = gamma
+        self.gae_lambda = gae_lambda
+        self.critic_discount = critic_discount
+        self.lr = lr
+        self.decay_lr = decay_lr
+        self.max_grad_norm = max_grad_norm
+
+        self.updates_completed = 0
 
         # Initialise memory
         self.state_memory = []
         self.action_memory = []
         self.prob_memory = []
+        self.value_memory = []
         self.reward_memory = []
         self.terminated_memory = []
 
     def choose_action(self, state):
         """
-        Choose an action for the current state, and remember the state, action, and log probability of the action under
-        the current policy.
+        Choose an action for the current state, and remember the state, action, log probability of the action and
+        estimated value.
 
         :param state: The current state
         :return: Chosen action vector
@@ -91,8 +95,8 @@ class Agent:
 
         # Generate action
         with torch.no_grad():
-            state = prepare_state(state)
-            dist = self.actor(state)
+            state = torch.tensor(state)
+            dist, value = self.model(state)
             action = dist.sample()
             prob = dist.log_prob(action)
 
@@ -100,6 +104,7 @@ class Agent:
         self.state_memory.append(state)
         self.action_memory.append(action.numpy())
         self.prob_memory.append(prob.numpy())
+        self.value_memory.append(value.numpy().squeeze())
 
         return action.detach().numpy()
 
@@ -116,17 +121,21 @@ class Agent:
     def calculate_returns(self, final_value):
         """
         Calculate the discounted returns from the experienced rewards
+        This uses Generalised Advantage Estimation in order to reduce variance in the returns
 
         :param final_value: The predicted value of the next state
         :return: The list of returns from each step
         """
-        current_return = final_value
+        length = len(self.reward_memory)
+        next_values = self.value_memory[1:] + [final_value.detach().numpy().squeeze()]
         returns = []
-        for reward, terminated in reversed(list(zip(self.reward_memory, self.terminated_memory))):
-            current_return = reward + self.gamma * current_return * (1 - terminated)
-            returns.insert(0, current_return)   # Prepend as returns are calculated backwards
-        returns = normalise(np.array(returns))
-        return returns
+        gae = 0
+        for step in reversed(range(length)):
+            mask = 1 - self.terminated_memory[step]
+            delta = self.reward_memory[step] + self.gamma * next_values[step] * mask - self.value_memory[step]
+            gae = delta + self.gae_lambda * self.gamma * gae * mask
+            returns.insert(0, gae + self.value_memory[step])
+        return np.stack(returns)
 
     def learn(self, next_state):
         """
@@ -136,57 +145,73 @@ class Agent:
         cut-off point
         """
 
-        # Collect each sequence into a numpy array
-        all_returns = self.calculate_returns(self.critic(torch.tensor(next_state)).item())
-        all_states = np.stack(self.state_memory)
-        all_actions = np.stack(self.action_memory)
-        all_probs = np.stack(self.prob_memory)
+        returns = self.calculate_returns(self.model(torch.tensor(next_state))[1])
+
+        # Stack and reshape all sequences
+        sequences = (
+            returns,
+            normalise(returns - np.stack(self.value_memory)),
+            np.stack(self.state_memory),
+            np.stack(self.action_memory),
+            np.stack(self.prob_memory)
+        )
+        sequences = (np.concatenate(sequence, axis=0) for sequence in sequences)
+        all_returns, all_advantages, all_states, all_actions, all_probs = sequences
+
+        # Decay learning rate
+        if self.decay_lr:
+            self.optimizer.param_groups[0]['lr'] = self.lr * (1 - self.updates_completed / self.num_updates)
+        self.updates_completed += 1
 
         for _ in range(self.num_epochs):
 
             # Generate indices for each batch
-            indices = np.arange(BUFFER_SIZE)
+            size = all_returns.shape[0]
+            indices = np.arange(size)
             np.random.shuffle(indices)
-            indices = np.split(indices, NUM_BATCHES)
+
+            indices = np.split(indices, all_returns.shape[0] // self.batch_size)
 
             # Create each batch
             batches = [(
                 torch.tensor(all_returns[batch_indices], dtype=torch.float32),
+                torch.tensor(all_advantages[batch_indices], dtype=torch.float32),
                 torch.tensor(all_states[batch_indices]),
                 torch.tensor(all_actions[batch_indices]),
                 torch.tensor(all_probs[batch_indices])
             ) for batch_indices in indices]
 
             for batch in batches:
-                returns, states, actions, old_probs = batch
+                returns, advantages, states, actions, old_probs = batch
+                advantages = torch.unsqueeze(advantages, dim=-1)
 
                 # Get current distribution and value from models
-                dist = self.actor(states)
-                new_values = torch.squeeze(self.critic(states))
+                dist, new_values = self.model(states)
+                new_values = torch.squeeze(new_values)
 
                 # Calculate components of actor loss
                 new_probs = dist.log_prob(actions)
                 ratios = torch.exp(new_probs - old_probs)
-                advantages = torch.unsqueeze(returns - new_values.detach(), dim=-1)
+
                 unclipped = ratios * advantages
                 clipped = torch.clip(ratios, 1-self.eps, 1+self.eps) * advantages
 
                 # Calculate actual loss
                 actor_loss = -torch.min(unclipped, clipped).mean()
                 critic_loss = torch.nn.functional.mse_loss(returns, new_values).mean()
-                loss = actor_loss + critic_loss
+                loss = actor_loss + self.critic_discount * critic_loss
 
                 # Back propagation
-                self.actor_optimizer.zero_grad()
-                self.critic_optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 loss.backward()
-                self.actor_optimizer.step()
-                self.critic_optimizer.step()
+                self.optimizer.step()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
 
         # Clear all memory
         self.state_memory.clear()
         self.action_memory.clear()
         self.prob_memory.clear()
+        self.value_memory.clear()
         self.reward_memory.clear()
         self.terminated_memory.clear()
 
@@ -197,37 +222,41 @@ class Agent:
         path = "../models/{}".format(RUN_NAME)
         if not os.path.exists(path):
             os.makedirs(path)
-        torch.save(self.actor.state_dict(), path + "/actor.pth")
+        torch.save(self.model.state_dict(), path + "/model.pth")
 
 
 def train():
     """
     Train the model
     """
-    env = gym.make("LunarLanderContinuous-v2")
+
+    # Vectorise and wrap environment
+    envs = SubprocVecEnv([lambda: gym.make('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
+    envs = VecMonitor(envs)
+    envs = VecNormalize(envs, gamma=GAMMA)
+
     writer = SummaryWriter("../summaries/" + RUN_NAME)
-    agent = Agent(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE, NUM_EPOCHS, EPSILON, GAMMA,
-                  LEARNING_RATE)
+
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_UPDATES, BATCH_SIZE,
+                  NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
-    score = 0
     scores = []
+
+    observation = envs.reset()
     for update in range(NUM_UPDATES):
-
-        observation, info = env.reset()
-
-        for update_step in range(BUFFER_SIZE):
+        for update_step in range(NUM_STEPS):
             action = agent.choose_action(observation)
-            observation, reward, terminated, truncated, info = env.step(action)
-            score += reward
-            agent.remember(reward, terminated)
+            observation, reward, done, info = envs.step(action)
+            agent.remember(reward, done)
 
-            # Reset environment if episode has terminated
-            if terminated:
-                scores.append(score)
-                writer.add_scalar("Score", score, update * BUFFER_SIZE + update_step)
-                score = 0
-                observation, info = env.reset()
+            # Record the return of each finished episode
+            for i in range(NUM_ENVS):
+                item = info[i]
+                if 'episode' in item.keys():
+                    score = item['episode']['r']
+                    scores.append(score)
+                    writer.add_scalar('score', score, (update * NUM_STEPS + update_step) * NUM_ENVS + i)
 
         # Update models
         agent.learn(observation)
@@ -237,10 +266,13 @@ def train():
             print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
             scores.clear()
 
-    env.close()
+    envs.save("../models/normaliser")   # Save normaliser
+    envs.close()
     writer.close()
     agent.save_model()
 
 
 if __name__ == '__main__':
+    start_time = time.time()
     train()
+    print("Time taken: {}".format(time.time() - start_time))

@@ -19,3 +19,9 @@ Implemented tire and suspension dynamics
 
 2022/11/06
 Finished basic car behaviour
+
+2022/11/15
+Discovered that ignoring "truncated" output was slowing performance dramatically and leading to worse training.
+
+2022/11/17
+Finally finished complete implementation of PPO.

@@ -57,6 +57,7 @@ dependencies:
     - atomicwrites==1.4.1
     - attrs==22.1.0
     - box2d-py==2.3.5
+    - cachetools==5.2.0
     - charset-normalizer==2.1.1
     - cloudpickle==2.2.0
     - colorama==0.4.5
@@ -67,34 +68,55 @@ dependencies:
     - fasteners==0.18
     - fonttools==4.37.4
     - glfw==2.5.5
-    - gym==0.26.2
+    - google-auth==2.14.1
+    - google-auth-oauthlib==0.4.6
+    - grpcio==1.50.0
+    - gym==0.21.0
     - gym-notices==0.0.8
     - imageio==2.22.1
     - imageio-ffmpeg==0.4.7
-    - importlib-metadata==5.0.0
+    - importlib-metadata==4.13.0
     - importlib-resources==5.10.0
     - iniconfig==1.1.1
     - kiwisolver==1.4.4
+    - lockfile==0.12.2
     - lz4==4.0.2
+    - markdown==3.4.1
+    - markupsafe==2.1.1
     - matplotlib==3.6.1
     - moviepy==1.0.3
     - mujoco==2.2.0
     - mujoco-py==2.1.2.14
     - numpy==1.23.3
+    - oauthlib==3.2.2
     - opencv-python==4.6.0.66
     - packaging==21.3
+    - pandas==1.5.1
     - pluggy==1.0.0
     - proglog==0.1.10
+    - protobuf==3.20.3
     - py==1.11.0
+    - pyasn1==0.4.8
+    - pyasn1-modules==0.2.8
     - pybullet==3.2.5
     - pygame==2.1.0
+    - pyglet==1.5.27
     - pyopengl==3.1.6
     - pyparsing==3.0.9
     - pytest==7.0.1
     - python-dateutil==2.8.2
+    - pytz==2022.6
+    - requests-oauthlib==1.3.1
+    - rsa==4.9
+    - scipy==1.9.3
+    - stable-baselines3==1.6.2
     - swig==4.0.2
+    - tensorboard==2.11.0
+    - tensorboard-data-server==0.6.1
+    - tensorboard-plugin-wit==1.8.1
     - tomli==2.0.1
     - tqdm==4.64.1
     - typing-extensions==4.4.0
+    - werkzeug==2.2.2
     - zipp==3.9.0
 prefix: C:\Users\CJews\anaconda3\envs\venv_project
