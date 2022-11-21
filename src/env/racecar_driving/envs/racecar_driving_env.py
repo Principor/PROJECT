@@ -26,8 +26,8 @@ class RacecarDrivingEnv(gym.Env):
 
     def __init__(self, gui=False):
         self.action_space = gym.spaces.box.Box(
-            low=np.array([-1, -1], dtype=np.float32),
-            high=np.array([1, 1], dtype=np.float32)
+            low=np.array([-1, -1], dtype=np.float64),
+            high=np.array([1, 1], dtype=np.float64)
         )
         self.observation_space = gym.spaces.box.Box(
             low=np.full(8, -np.inf),
@@ -36,15 +36,16 @@ class RacecarDrivingEnv(gym.Env):
 
         self.gui = gui
 
-        p.connect(p.GUI if self.gui else p.DIRECT)
-        p.setTimeStep(TIME_STEP)
-        p.setGravity(0, 0, -10)
+        self.client = p.connect(p.GUI if self.gui else p.DIRECT)
+        p.setTimeStep(TIME_STEP, physicsClientId=self.client)
+        p.setGravity(0, 0, -10, physicsClientId=self.client)
 
         plane_collision_shape = p.createCollisionShape(p.GEOM_PLANE)
         plane_visual_shape = p.createVisualShape(p.GEOM_PLANE)
         ground = p.createMultiBody(baseMass=0,
                                    baseCollisionShapeIndex=plane_collision_shape,
-                                   baseVisualShapeIndex=plane_visual_shape)
+                                   baseVisualShapeIndex=plane_visual_shape,
+                                   physicsClientId=self.client)
         p.changeDynamics(ground, -1,
                          restitution=0.9)
 
@@ -53,34 +54,35 @@ class RacecarDrivingEnv(gym.Env):
         goal_shape = p.createVisualShape(p.GEOM_SPHERE, radius=1, rgbaColor=[0, 1, 0, 1])
         self.goal_body = p.createMultiBody(baseMass=0,
                                            basePosition=(0, 0, 1),
-                                           baseVisualShapeIndex=goal_shape)
+                                           baseVisualShapeIndex=goal_shape,
+                                           physicsClientId=self.client)
         self.goal_position = (0, 0)
 
         self.previous_position = self.velocity = (0, 0)
 
     def step(self, action):
-        p.stepSimulation()
+        p.stepSimulation(physicsClientId=self.client)
         self.car.update(-1, 0, TIME_STEP)
         new_position = self.get_car_position()
         previous_distance = get_distance(self.previous_position, self.goal_position)
         new_distance = get_distance(new_position, self.goal_position)
         self.velocity = (np.array(new_position) - self.previous_position) / TIME_STEP
         self.previous_position = new_position
-        return self.get_observation(), previous_distance-new_distance, False, False, {}
+        return self.get_observation(), previous_distance-new_distance, False, {}
 
     def reset(self, seed=None, options=None):
         if self.car is not None:
             self.car.remove()
-        self.car = car.Car()
+        self.car = car.Car(self.client)
         self.move_goal()
         self.previous_position = self.velocity = (0, 0)
-        return self.get_observation(), {}
+        return self.get_observation()
 
-    def render(self):
+    def render(self, mode="human"):
         time.sleep(TIME_STEP)
 
     def close(self):
-        p.disconnect()
+        p.disconnect(physicsClientId=self.client)
 
     def move_goal(self):
         valid_position = False
@@ -94,7 +96,6 @@ class RacecarDrivingEnv(gym.Env):
         return x, y
 
     def get_observation(self):
-
         car_x, car_y = self.get_car_position()
         velocity_x, velocity_y = self.velocity
         goal_x, goal_y = self.goal_position

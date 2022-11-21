@@ -7,8 +7,8 @@ from env.racecar_driving.resources import util
 
 
 class Car:
-    def __init__(self):
-        assert p.getConnectionInfo()['isConnected'], "No pybullet connection found"
+    def __init__(self, client):
+        self.client = client
 
         size = [1, 2, 0.5]
 
@@ -18,10 +18,11 @@ class Car:
         self.body = p.createMultiBody(baseMass=100,
                                       baseCollisionShapeIndex=body_collision_shape,
                                       baseVisualShapeIndex=body_visual_shape,
-                                      basePosition=[0, 0, 1.5])
+                                      basePosition=[0, 0, 1.5],
+                                      physicsClientId=client)
 
-        self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10)
-        self.rear_axle = Axle(self, -1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10)
+        self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10, self.client)
+        self.rear_axle = Axle(self, -1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10, self.client)
 
         self.horsepower = 50
         self.max_brake_torque = 300
@@ -44,21 +45,22 @@ class Car:
         return util.get_transform(self.body)
 
     def apply_force(self, position, force):
-        p.applyExternalForce(self.body, linkIndex=-1, posObj=position, forceObj=force, flags=p.WORLD_FRAME)
+        p.applyExternalForce(self.body, linkIndex=-1, posObj=position, forceObj=force, flags=p.WORLD_FRAME,
+                             physicsClientId=self.client)
 
     def remove(self):
         p.removeBody(self.body)
 
 
 class Axle:
-    def __init__(self, car, axle_position, axle_width, axle_height, spring_length, spring_stiffness, damper_stiffness, wheel_radius,
-                 wheel_mass):
+    def __init__(self, car, axle_position, axle_width, axle_height, spring_length, spring_stiffness, damper_stiffness,
+                 wheel_radius, wheel_mass, client):
         self.car = car
 
         self.right_wheel = Wheel(car, util.make_vector(axle_width / 2, axle_position, axle_height), spring_length,
-                                 spring_stiffness, damper_stiffness, wheel_radius, wheel_mass)
+                                 spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, client)
         self.left_wheel = Wheel(car, util.make_vector(-axle_width / 2, axle_position, axle_height), spring_length,
-                                spring_stiffness, damper_stiffness, wheel_radius, wheel_mass)
+                                spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, client)
         self.wheels = [self.left_wheel, self.right_wheel]
 
     def set_steering_angle(self, steering_angle):
@@ -90,7 +92,7 @@ class Axle:
 
 
 class Wheel:
-    def __init__(self, car, start_position, spring_length, spring_stiffness, damper_stiffness, radius, mass):
+    def __init__(self, car, start_position, spring_length, spring_stiffness, damper_stiffness, radius, mass, client):
         self.car = car
         self.start_position = start_position
         self.spring_length = spring_length
@@ -115,7 +117,7 @@ class Wheel:
         self.previous_position = self.contact_position = util.make_vector(0, 0, 0)
         self.contact_normal = util.make_vector(0, 0, 0)
 
-        self.lineId = -1
+        self.client = client
 
     def apply_suspension_force(self, dt):
         self.previous_position = self.contact_position
@@ -124,7 +126,7 @@ class Wheel:
         ray_start = util.transform_position(car_transform, self.start_position)
         ray_dir = util.transform_direction(car_transform, util.make_vector(0, 0, -1))
         ray_end = ray_start + ray_dir * self.spring_length
-        index, link, fraction, position, normal = p.rayTest(ray_start, ray_end)[0]
+        index, link, fraction, position, normal = p.rayTest(ray_start, ray_end, physicsClientId=self.client)[0]
         self.contact_position = util.make_vector(*position)
         self.contact_normal = util.make_vector(*normal)
 
