@@ -161,10 +161,10 @@ class Wheel:
 
         if long_speed > 0.5:
             long_slip = (rolling_velocity - long_speed) / abs(long_speed)
-            long_force = self.force_from_slip(10, 1.6, 2, 0, long_slip)
+            long_force = self._force_from_slip(10, 1.6, 2, 0, long_slip)
 
             lat_slip = math.atan2(-lat_speed, long_speed)
-            lat_force = self.force_from_slip(10, 1.3, 2, 0, lat_slip)
+            lat_force = self._force_from_slip(10, 1.3, 2, 0, lat_slip)
         else:
             long_force = (rolling_velocity - long_speed) * (self.reaction_force / 9.8)
             lat_force = -np.clip(lat_speed, -0.5, 0.5) * (self.reaction_force / 9.8)
@@ -193,5 +193,5 @@ class Wheel:
         brake_deceleration = self.brake_torque / inertia * dt
         self.angular_velocity -= np.clip(self.angular_velocity, -brake_deceleration, brake_deceleration)
 
-    def force_from_slip(self, B, C, D, E, slip):
+    def _force_from_slip(self, B, C, D, E, slip):
         return self.reaction_force * D * math.sin(C * math.atan(B * slip - E * (B * slip - math.atan(B * slip))))

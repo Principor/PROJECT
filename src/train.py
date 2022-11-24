@@ -8,9 +8,10 @@ from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
 from model import Model
+import racecar_driving
 
 # Parameters
-NUM_UPDATES = 200
+NUM_UPDATES = 400
 NUM_ENVS = 4
 NUM_STEPS = 512
 BATCH_SIZE = 64
@@ -231,7 +232,7 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0') for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
 

@@ -8,14 +8,13 @@ import pybullet as p
 from src.env.racecar_driving.resources import car
 from src.env.racecar_driving.resources import util
 
-
 TIME_STEP = 0.01
 
 
 def get_distance(position1, position2):
     x1, y1 = position1
     x2, y2 = position2
-    return math.sqrt((x1-x2)**2 + (y1-y2)**2)
+    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
 class RacecarDrivingEnv(gym.Env):
@@ -39,6 +38,10 @@ class RacecarDrivingEnv(gym.Env):
         self.client = p.connect(p.GUI if self.gui else p.DIRECT)
         p.setTimeStep(TIME_STEP, physicsClientId=self.client)
         p.setGravity(0, 0, -10, physicsClientId=self.client)
+        p.resetDebugVisualizerCamera(cameraDistance=40,
+                                     cameraYaw=0,
+                                     cameraPitch=-45,
+                                     cameraTargetPosition=(0, 0, 0))
 
         plane_collision_shape = p.createCollisionShape(p.GEOM_PLANE)
         plane_visual_shape = p.createVisualShape(p.GEOM_PLANE)
@@ -60,23 +63,28 @@ class RacecarDrivingEnv(gym.Env):
 
         self.previous_position = self.velocity = (0, 0)
 
+        self.steps = 0
+
     def step(self, action):
-        p.stepSimulation(physicsClientId=self.client)
-        self.car.update(-1, 0, TIME_STEP)
-        new_position = self.get_car_position()
+        for _ in range(10):
+            p.stepSimulation(physicsClientId=self.client)
+            self.car.update(action[0], action[1], TIME_STEP)
+        new_position = self._get_car_position()
         previous_distance = get_distance(self.previous_position, self.goal_position)
         new_distance = get_distance(new_position, self.goal_position)
         self.velocity = (np.array(new_position) - self.previous_position) / TIME_STEP
         self.previous_position = new_position
-        return self.get_observation(), previous_distance-new_distance, False, {}
+        self.steps += 1
+        return self._get_observation(), previous_distance - new_distance, self.steps >= 100, {}
 
     def reset(self, seed=None, options=None):
         if self.car is not None:
             self.car.remove()
         self.car = car.Car(self.client)
-        self.move_goal()
+        self._move_goal()
         self.previous_position = self.velocity = (0, 0)
-        return self.get_observation()
+        self.steps = 0
+        return self._get_observation()
 
     def render(self, mode="human"):
         time.sleep(TIME_STEP)
@@ -84,19 +92,19 @@ class RacecarDrivingEnv(gym.Env):
     def close(self):
         p.disconnect(physicsClientId=self.client)
 
-    def move_goal(self):
+    def _move_goal(self):
         valid_position = False
         while not valid_position:
-            x, y = self.goal_position = (np.random.random(2) - 0.5) * 20
+            x, y = self.goal_position = (np.random.random(2) - 0.5) * 40
             p.resetBasePositionAndOrientation(self.goal_body, posObj=(x, y, 1), ornObj=(0, 0, 0, 1))
-            valid_position = get_distance((x, y), self.get_car_position()) > 3
+            valid_position = get_distance((x, y), self._get_car_position()) > 15
 
-    def get_car_position(self):
+    def _get_car_position(self):
         (x, y, _), _ = self.car.get_transform()
         return x, y
 
-    def get_observation(self):
-        car_x, car_y = self.get_car_position()
+    def _get_observation(self):
+        car_x, car_y = self._get_car_position()
         velocity_x, velocity_y = self.velocity
         goal_x, goal_y = self.goal_position
         dir_x, dir_y, _ = util.transform_direction(self.car.get_transform(), util.make_vector(0, 1, 0))
@@ -106,5 +114,3 @@ class RacecarDrivingEnv(gym.Env):
             goal_x, goal_y,
             dir_x, dir_y,
         ], dtype=np.float32)
-
-

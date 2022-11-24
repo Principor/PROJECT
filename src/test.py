@@ -3,6 +3,7 @@ import torch
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from model import Model
+import racecar_driving
 
 # Parameters
 NUM_STEPS = 5000
@@ -13,7 +14,7 @@ if __name__ == '__main__':
     Test the trained model
     """
 
-    env = DummyVecEnv([lambda: gym.make("LunarLanderContinuous-v2")])
+    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=True)])
     env = VecNormalize.load("../models/normaliser", env)    # Load normaliser generated during training so inputs match
     actor = Model(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE)
     actor.load_state_dict(torch.load("../models/ppo/model.pth"))
