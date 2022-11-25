@@ -235,6 +235,7 @@ def train():
     envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0') for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
+    print()
 
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 

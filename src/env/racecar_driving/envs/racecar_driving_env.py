@@ -1,4 +1,5 @@
 import math
+import random
 import time
 
 import gym
@@ -54,14 +55,25 @@ class RacecarDrivingEnv(gym.Env):
 
         self.car = None
 
-        goal_shape = p.createVisualShape(p.GEOM_SPHERE, radius=1, rgbaColor=[0, 1, 0, 1])
-        self.goal_body = p.createMultiBody(baseMass=0,
-                                           basePosition=(0, 0, 1),
-                                           baseVisualShapeIndex=goal_shape,
-                                           physicsClientId=self.client)
-        self.goal_position = (0, 0)
+        waypoint_shape = p.createVisualShape(p.GEOM_SPHERE, radius=1, rgbaColor=[0, 1, 0, 1])
+        self.waypoint_body = p.createMultiBody(baseMass=0,
+                                               basePosition=(0, 0, 1),
+                                               baseVisualShapeIndex=waypoint_shape,
+                                               physicsClientId=self.client)
 
         self.previous_position = self.velocity = (0, 0)
+
+        self.checkpoints = [
+            (-30, -10), (-30, 10), (-20, 20), (20, 20), (30, 10), (20, 0), (10, 10), (0, 10), (-10, 0), (-10, -10),
+            (-20, -20)
+        ]
+        for i in range(len(self.checkpoints)):
+            p.addUserDebugLine((*self._get_checkpoint(i), 0.1),
+                               (*self._get_checkpoint(i + 1), 0.1),
+                               lineColorRGB=(1, 0, 0),
+                               lineWidth=1,
+                               physicsClientId=self.client)
+        self.checkpoint_index = 0
 
         self.steps = 0
 
@@ -69,19 +81,32 @@ class RacecarDrivingEnv(gym.Env):
         for _ in range(10):
             p.stepSimulation(physicsClientId=self.client)
             self.car.update(action[0], action[1], TIME_STEP)
-        new_position = self._get_car_position()
-        previous_distance = get_distance(self.previous_position, self.goal_position)
-        new_distance = get_distance(new_position, self.goal_position)
-        self.velocity = (np.array(new_position) - self.previous_position) / TIME_STEP
-        self.previous_position = new_position
+
+        current_position = self._get_car_position()
+        while (current_distance := get_distance(current_position, self._get_goal_position())) < 3:
+            self.checkpoint_index = (self.checkpoint_index + 1) % len(self.checkpoints)
+            self._move_waypoint()
+        previous_distance = get_distance(self.previous_position, self._get_goal_position())
+        reward = previous_distance - current_distance
+
+        self.velocity = (np.array(current_position) - self.previous_position) / TIME_STEP
+        self.previous_position = current_position
         self.steps += 1
-        return self._get_observation(), previous_distance - new_distance, self.steps >= 100, {}
+
+        return self._get_observation(), reward, self.steps >= 100, {}
 
     def reset(self, seed=None, options=None):
         if self.car is not None:
             self.car.remove()
-        self.car = car.Car(self.client)
-        self._move_goal()
+
+        self.checkpoint_index = random.randrange(len(self.checkpoints))
+        self._move_waypoint()
+
+        start_position = self._get_checkpoint(self.checkpoint_index-1)
+        difference = tuple(self._get_goal_position()[i] - start_position[i] for i in range(2))
+        direction = math.atan2(difference[1], difference[0]) - math.pi / 2
+
+        self.car = car.Car(self.client, (*start_position, 1.5), p.getQuaternionFromEuler((0, 0, direction)))
         self.previous_position = self.velocity = (0, 0)
         self.steps = 0
         return self._get_observation()
@@ -92,21 +117,24 @@ class RacecarDrivingEnv(gym.Env):
     def close(self):
         p.disconnect(physicsClientId=self.client)
 
-    def _move_goal(self):
-        valid_position = False
-        while not valid_position:
-            x, y = self.goal_position = (np.random.random(2) - 0.5) * 40
-            p.resetBasePositionAndOrientation(self.goal_body, posObj=(x, y, 1), ornObj=(0, 0, 0, 1))
-            valid_position = get_distance((x, y), self._get_car_position()) > 15
+    def _move_waypoint(self):
+        x, y = self._get_goal_position()
+        p.resetBasePositionAndOrientation(self.waypoint_body, posObj=(x, y, 1), ornObj=(0, 0, 0, 1))
 
     def _get_car_position(self):
         (x, y, _), _ = self.car.get_transform()
         return x, y
 
+    def _get_goal_position(self):
+        return self._get_checkpoint(self.checkpoint_index)
+
+    def _get_checkpoint(self, index):
+        return self.checkpoints[index % len(self.checkpoints)]
+
     def _get_observation(self):
         car_x, car_y = self._get_car_position()
         velocity_x, velocity_y = self.velocity
-        goal_x, goal_y = self.goal_position
+        goal_x, goal_y = self._get_goal_position()
         dir_x, dir_y, _ = util.transform_direction(self.car.get_transform(), util.make_vector(0, 1, 0))
         return np.array([
             car_x, car_y,

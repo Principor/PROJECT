@@ -7,7 +7,7 @@ from env.racecar_driving.resources import util
 
 
 class Car:
-    def __init__(self, client):
+    def __init__(self, client, position, orientation):
         self.client = client
 
         size = [1, 2, 0.5]
@@ -18,7 +18,8 @@ class Car:
         self.body = p.createMultiBody(baseMass=100,
                                       baseCollisionShapeIndex=body_collision_shape,
                                       baseVisualShapeIndex=body_visual_shape,
-                                      basePosition=[0, 0, 1.5],
+                                      basePosition=position,
+                                      baseOrientation=orientation,
                                       physicsClientId=client)
 
         self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10, self.client)
@@ -157,7 +158,7 @@ class Wheel:
 
         self.target_angular_velocity = long_speed / self.radius
 
-        rolling_velocity = (self.angular_velocity+self.angular_velocity_prev) / 2 * self.radius
+        rolling_velocity = (self.angular_velocity + self.angular_velocity_prev) / 2 * self.radius
 
         if long_speed > 0.5:
             long_slip = (rolling_velocity - long_speed) / abs(long_speed)
