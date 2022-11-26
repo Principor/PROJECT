@@ -6,6 +6,18 @@ import pybullet as p
 from env.racecar_driving.resources import util
 
 
+def get_long_slip(rolling_velocity, long_speed):
+    return (rolling_velocity - long_speed) / abs(long_speed)
+
+
+def get_lat_slip(lat_speed, long_speed):
+    return math.atan2(-lat_speed, long_speed)
+
+
+def force_from_slip(F_z, B, C, D, E, slip):
+    return F_z * D * math.sin(C * math.atan(B * slip - E * (B * slip - math.atan(B * slip))))
+
+
 class Car:
     def __init__(self, client, position, orientation):
         self.client = client
@@ -22,8 +34,8 @@ class Car:
                                       baseOrientation=orientation,
                                       physicsClientId=client)
 
-        self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10, self.client)
-        self.rear_axle = Axle(self, -1.5, 2.2, -0.25, 1, 1000, 200, 0.2, 10, self.client)
+        self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 500, 50, 0.2, 10, self.client)
+        self.rear_axle = Axle(self, -1.5, 2.2, -0.25, 1, 500, 50, 0.2, 10, self.client)
 
         self.horsepower = 50
         self.max_brake_torque = 300
@@ -78,10 +90,15 @@ class Axle:
 
     def update(self, dt):
         for wheel in self.wheels:
-            wheel.apply_suspension_force(dt)
+            wheel.update_ground_contact(dt)
+
+        difference = self.left_wheel.spring_length - self.right_wheel.spring_length
+        rollbar_force = difference * 500
+        self.left_wheel.rollbar_force = -rollbar_force
+        self.right_wheel.rollbar_force = rollbar_force
 
         for wheel in self.wheels:
-            wheel.apply_tire_force(dt)
+            wheel.apply_forces()
 
         for wheel in self.wheels:
             wheel.apply_torque(dt)
@@ -93,10 +110,10 @@ class Axle:
 
 
 class Wheel:
-    def __init__(self, car, start_position, spring_length, spring_stiffness, damper_stiffness, radius, mass, client):
+    def __init__(self, car, start_position, max_spring_length, spring_stiffness, damper_stiffness, radius, mass, client):
         self.car = car
         self.start_position = start_position
-        self.spring_length = spring_length
+        self.max_spring_length = max_spring_length
         self.spring_stiffness = spring_stiffness
         self.damper_stiffness = damper_stiffness
 
@@ -110,39 +127,45 @@ class Wheel:
 
         self.traction_torque = 0
         self.motor_torque = 0
-        self.steering_angle = 0
         self.brake_torque = 0
+        self.steering_angle = 0
 
-        self.previous_length = 0
-        self.reaction_force = 0
-        self.previous_position = self.contact_position = util.make_vector(0, 0, 0)
+        self.rollbar_force = 0
+        self.spring_length = 0
+        self.spring_speed = 0
+        self.velocity = self.contact_position = util.make_vector(0, 0, 0)
         self.contact_normal = util.make_vector(0, 0, 0)
+        self.grounded = False
 
         self.client = client
 
-    def apply_suspension_force(self, dt):
-        self.previous_position = self.contact_position
+    def update_ground_contact(self, dt):
+        previous_position = self.contact_position
+        previous_length = self.spring_length
 
         car_transform = self.car.get_transform()
         ray_start = util.transform_position(car_transform, self.start_position)
         ray_dir = util.transform_direction(car_transform, util.make_vector(0, 0, -1))
-        ray_end = ray_start + ray_dir * self.spring_length
-        index, link, fraction, position, normal = p.rayTest(ray_start, ray_end, physicsClientId=self.client)[0]
+        ray_end = ray_start + ray_dir * self.max_spring_length
+        _, _, fraction, position, normal = p.rayTest(ray_start, ray_end, physicsClientId=self.client)[0]
+
         self.contact_position = util.make_vector(*position)
         self.contact_normal = util.make_vector(*normal)
+        self.spring_length = fraction * self.max_spring_length
 
-        current_length = fraction
-        spring_force = (1 - current_length) * self.spring_stiffness
-        damper_force = -(current_length - self.previous_length) * self.damper_stiffness / dt
-        suspension_force = spring_force + damper_force
+        if self.grounded:
+            self.velocity = (self.contact_position - previous_position) / dt
+            self.spring_speed = (self.spring_length - previous_length) / dt
+        self.grounded = fraction < 1
 
-        self.car.apply_force(ray_start, self.contact_normal * suspension_force)
-        self.previous_length = current_length
+    def apply_forces(self):
+        if not self.grounded:
+            return
 
-        self.reaction_force = suspension_force if fraction < 1 else 0
+        spring_force = (self.max_spring_length - self.spring_length) * self.spring_stiffness
+        damper_force = -self.spring_speed * self.damper_stiffness
 
-    def apply_tire_force(self, dt):
-        velocity = (self.contact_position - self.previous_position) / dt
+        reaction_force = spring_force + damper_force + self.rollbar_force
 
         wheel_rotation = util.make_quaternion(0, 0, self.steering_angle)
         wheel_transform = util.multiply_transforms(self.car.get_transform(),
@@ -153,24 +176,9 @@ class Wheel:
         lat_dir = util.transform_direction(wheel_transform, util.make_vector(1, 0, 0))
         lat_dir = util.project_to_plane(lat_dir, self.contact_normal)
 
-        long_speed = np.dot(velocity, long_dir)
-        lat_speed = np.dot(velocity, lat_dir)
+        long_force, lat_force = self._get_tyre_forces(long_dir, lat_dir, reaction_force)
 
-        self.target_angular_velocity = long_speed / self.radius
-
-        rolling_velocity = (self.angular_velocity + self.angular_velocity_prev) / 2 * self.radius
-
-        if long_speed > 0.5:
-            long_slip = (rolling_velocity - long_speed) / abs(long_speed)
-            long_force = self._force_from_slip(10, 1.6, 2, 0, long_slip)
-
-            lat_slip = math.atan2(-lat_speed, long_speed)
-            lat_force = self._force_from_slip(10, 1.3, 2, 0, lat_slip)
-        else:
-            long_force = (rolling_velocity - long_speed) * (self.reaction_force / 9.8)
-            lat_force = -np.clip(lat_speed, -0.5, 0.5) * (self.reaction_force / 9.8)
-
-        final_force = long_force * long_dir + lat_force * lat_dir
+        final_force = long_force * long_dir + lat_force * lat_dir + reaction_force * self.contact_normal
 
         self.car.apply_force(self.contact_position, final_force)
 
@@ -194,5 +202,22 @@ class Wheel:
         brake_deceleration = self.brake_torque / inertia * dt
         self.angular_velocity -= np.clip(self.angular_velocity, -brake_deceleration, brake_deceleration)
 
-    def _force_from_slip(self, B, C, D, E, slip):
-        return self.reaction_force * D * math.sin(C * math.atan(B * slip - E * (B * slip - math.atan(B * slip))))
+    def _get_tyre_forces(self, long_dir, lat_dir, reaction_force):
+        long_speed = np.dot(self.velocity, long_dir)
+        lat_speed = np.dot(self.velocity, lat_dir)
+
+        self.target_angular_velocity = long_speed / self.radius
+
+        rolling_velocity = (self.angular_velocity + self.angular_velocity_prev) / 2 * self.radius
+
+        if long_speed > 0.5:
+            long_slip = get_long_slip(rolling_velocity, long_speed)
+            long_force = force_from_slip(reaction_force, 10, 1.6, 2, 0, long_slip)
+
+            lat_slip = math.atan2(-lat_speed, long_speed)
+            lat_force = force_from_slip(reaction_force, 10, 1.3, 2, 0, lat_slip)
+        else:
+            long_force = (rolling_velocity-long_speed) * (reaction_force / 9.8)
+            lat_force = np.clip(-lat_speed, -0.5, 0.5) * (reaction_force / 9.8)
+
+        return long_force, lat_force
