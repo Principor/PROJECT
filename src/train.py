@@ -11,7 +11,7 @@ from model import Model
 import racecar_driving
 
 # Parameters
-NUM_UPDATES = 400
+NUM_UPDATES = 200
 NUM_ENVS = 4
 NUM_STEPS = 512
 BATCH_SIZE = 64

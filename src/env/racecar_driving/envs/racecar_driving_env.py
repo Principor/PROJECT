@@ -30,8 +30,8 @@ class RacecarDrivingEnv(gym.Env):
             high=np.array([1, 1], dtype=np.float64)
         )
         self.observation_space = gym.spaces.box.Box(
-            low=np.full(8, -np.inf),
-            high=np.full(8, np.inf),
+            low=np.full(6, -np.inf),
+            high=np.full(6, np.inf),
         )
 
         self.gui = gui
@@ -81,6 +81,8 @@ class RacecarDrivingEnv(gym.Env):
         for _ in range(10):
             p.stepSimulation(physicsClientId=self.client)
             self.car.update(action[0], action[1], TIME_STEP)
+            if self.gui:
+                time.sleep(TIME_STEP)
 
         current_position = self._get_car_position()
         while (current_distance := get_distance(current_position, self._get_goal_position())) < 3:
@@ -89,11 +91,11 @@ class RacecarDrivingEnv(gym.Env):
         previous_distance = get_distance(self.previous_position, self._get_goal_position())
         reward = previous_distance - current_distance
 
-        self.velocity = (np.array(current_position) - self.previous_position) / TIME_STEP
+        self.velocity = np.divide(np.subtract(current_position, self.previous_position), TIME_STEP)
         self.previous_position = current_position
         self.steps += 1
 
-        return self._get_observation(), reward, self.steps >= 100, {}
+        return self._get_observation(), reward, self.steps >= 200, {}
 
     def reset(self, seed=None, options=None):
         if self.car is not None:
@@ -112,7 +114,7 @@ class RacecarDrivingEnv(gym.Env):
         return self._get_observation()
 
     def render(self, mode="human"):
-        time.sleep(TIME_STEP)
+        pass
 
     def close(self):
         p.disconnect(physicsClientId=self.client)
@@ -132,13 +134,13 @@ class RacecarDrivingEnv(gym.Env):
         return self.checkpoints[index % len(self.checkpoints)]
 
     def _get_observation(self):
-        car_x, car_y = self._get_car_position()
-        velocity_x, velocity_y = self.velocity
-        goal_x, goal_y = self._get_goal_position()
-        dir_x, dir_y, _ = util.transform_direction(self.car.get_transform(), util.make_vector(0, 1, 0))
-        return np.array([
-            car_x, car_y,
-            velocity_x, velocity_y,
-            goal_x, goal_y,
-            dir_x, dir_y,
-        ], dtype=np.float32)
+        points = [self.velocity, np.subtract(self._get_goal_position(), self._get_car_position()),
+                  np.subtract(self._get_checkpoint(self.checkpoint_index + 1), self._get_car_position())]
+        observation = []
+        for point in points:
+            vector = util.make_vector(*point, 0)
+            local = util.transform_direction(util.invert_transform(self.car.get_transform()), vector)
+            observation.append(local[0])
+            observation.append(local[1])
+
+        return np.array(observation, dtype=np.float32)
