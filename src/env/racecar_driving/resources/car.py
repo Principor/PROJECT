@@ -14,6 +14,10 @@ def get_lat_slip(lat_speed, long_speed):
     return math.atan2(-lat_speed, long_speed)
 
 
+def get_force_asymptote(F_z, B, C, D, E):
+    return F_z * D * math.sin(C)
+
+
 def force_from_slip(F_z, B, C, D, E, slip):
     return F_z * D * math.sin(C * math.atan(B * slip - E * (B * slip - math.atan(B * slip))))
 
@@ -156,6 +160,9 @@ class Wheel:
         if self.grounded:
             self.velocity = (self.contact_position - previous_position) / dt
             self.spring_speed = (self.spring_length - previous_length) / dt
+        else:
+            self.velocity = util.make_vector(0, 0, 0)
+            self.spring_speed = 0
         self.grounded = fraction < 1
 
     def apply_forces(self):
@@ -164,8 +171,8 @@ class Wheel:
 
         spring_force = (self.max_spring_length - self.spring_length) * self.spring_stiffness
         damper_force = -self.spring_speed * self.damper_stiffness
-
         reaction_force = spring_force + damper_force + self.rollbar_force
+        reaction_dir = util.transform_direction(self.car.get_transform(), util.make_vector(0, 0, 1))
 
         wheel_rotation = util.make_quaternion(0, 0, self.steering_angle)
         wheel_transform = util.multiply_transforms(self.car.get_transform(),
@@ -178,7 +185,7 @@ class Wheel:
 
         long_force, lat_force = self._get_tyre_forces(long_dir, lat_dir, reaction_force)
 
-        final_force = long_force * long_dir + lat_force * lat_dir + reaction_force * self.contact_normal
+        final_force = long_force * long_dir + lat_force * lat_dir + reaction_force * reaction_dir
 
         self.car.apply_force(self.contact_position, final_force)
 
@@ -217,7 +224,12 @@ class Wheel:
             lat_slip = math.atan2(-lat_speed, long_speed)
             lat_force = force_from_slip(reaction_force, 10, 1.3, 2, 0, lat_slip)
         else:
-            long_force = (rolling_velocity-long_speed) * (reaction_force / 9.8)
-            lat_force = np.clip(-lat_speed, -0.5, 0.5) * (reaction_force / 9.8)
+            max_long_force = get_force_asymptote(reaction_force, 10, 1.6, 2, 0)
+            long_force = (rolling_velocity-long_speed) * (reaction_force / 9.8) * 100
+            long_force = np.clip(long_force, -max_long_force, max_long_force)
+
+            max_lat_force = get_force_asymptote(reaction_force, 10, 1.3, 2, 0)
+            lat_force = -lat_speed * (reaction_force / 9.8) * 100
+            lat_force = np.clip(lat_force, -max_lat_force, max_lat_force)
 
         return long_force, lat_force

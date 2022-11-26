@@ -25,3 +25,6 @@ Discovered that ignoring "truncated" output was slowing performance dramatically
 
 2022/11/17
 Finally finished complete implementation of PPO.
+
+2022/11/21
+Agent can successfully drive to waypoints
