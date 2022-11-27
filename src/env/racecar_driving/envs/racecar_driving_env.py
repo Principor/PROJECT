@@ -7,15 +7,9 @@ import numpy as np
 import pybullet as p
 
 from src.env.racecar_driving.resources import car
-from src.env.racecar_driving.resources import util
+from src.env.racecar_driving.resources.util import Vector2
 
 TIME_STEP = 0.01
-
-
-def get_distance(position1, position2):
-    x1, y1 = position1
-    x2, y2 = position2
-    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
 class RacecarDrivingEnv(gym.Env):
@@ -57,19 +51,20 @@ class RacecarDrivingEnv(gym.Env):
 
         waypoint_shape = p.createVisualShape(p.GEOM_SPHERE, radius=1, rgbaColor=[0, 1, 0, 1])
         self.waypoint_body = p.createMultiBody(baseMass=0,
-                                               basePosition=(0, 0, 1),
+                                               basePosition=(0, 0, -1),
                                                baseVisualShapeIndex=waypoint_shape,
                                                physicsClientId=self.client)
 
-        self.previous_position = self.velocity = (0, 0)
+        self.previous_position = Vector2(0, 0)
+        self.velocity = Vector2(0, 0)
 
         self.checkpoints = [
-            (-30, -10), (-30, 10), (-20, 20), (20, 20), (30, 10), (20, 0), (10, 10), (0, 10), (-10, 0), (-10, -10),
-            (-20, -20)
+            Vector2(-30, -10), Vector2(-30, 10), Vector2(-20, 20), Vector2(20, 20), Vector2(30, 10), Vector2(20, 0),
+            Vector2(10, 10), Vector2(0, 10), Vector2(-10, 0), Vector2(-10, -10), Vector2(-20, -20)
         ]
         for i in range(len(self.checkpoints)):
-            p.addUserDebugLine((*self._get_checkpoint(i), 0.1),
-                               (*self._get_checkpoint(i + 1), 0.1),
+            p.addUserDebugLine(self._get_checkpoint(i).make_3d(0.1).tuple(),
+                               self._get_checkpoint(i + 1).make_3d(0.1).tuple(),
                                lineColorRGB=(1, 0, 0),
                                lineWidth=1,
                                physicsClientId=self.client)
@@ -85,13 +80,13 @@ class RacecarDrivingEnv(gym.Env):
                 time.sleep(TIME_STEP)
 
         current_position = self._get_car_position()
-        while (current_distance := get_distance(current_position, self._get_goal_position())) < 3:
+        while (current_distance := current_position.get_distance(self._get_goal_position())) < 3:
             self.checkpoint_index = (self.checkpoint_index + 1) % len(self.checkpoints)
             self._move_waypoint()
-        previous_distance = get_distance(self.previous_position, self._get_goal_position())
+        previous_distance = self.previous_position.get_distance(self._get_goal_position())
         reward = previous_distance - current_distance
 
-        self.velocity = np.divide(np.subtract(current_position, self.previous_position), TIME_STEP)
+        self.velocity = (current_position - self.previous_position) / TIME_STEP
         self.previous_position = current_position
         self.steps += 1
 
@@ -105,11 +100,14 @@ class RacecarDrivingEnv(gym.Env):
         self._move_waypoint()
 
         start_position = self._get_checkpoint(self.checkpoint_index-1)
-        difference = tuple(self._get_goal_position()[i] - start_position[i] for i in range(2))
+        difference = (self._get_goal_position() - start_position).tuple()
         direction = math.atan2(difference[1], difference[0]) - math.pi / 2
 
-        self.car = car.Car(self.client, (*start_position, 1.5), p.getQuaternionFromEuler((0, 0, direction)))
-        self.previous_position = self.velocity = (0, 0)
+        print(start_position, self._get_goal_position(), difference)
+
+        self.car = car.Car(self.client, start_position.make_3d(1.5).tuple(), p.getQuaternionFromEuler((0, 0, direction)))
+        self.previous_position = Vector2(0, 0)
+        self.velocity = Vector2(0, 0)
         self.steps = 0
         return self._get_observation()
 
@@ -120,12 +118,11 @@ class RacecarDrivingEnv(gym.Env):
         p.disconnect(physicsClientId=self.client)
 
     def _move_waypoint(self):
-        x, y = self._get_goal_position()
-        p.resetBasePositionAndOrientation(self.waypoint_body, posObj=(x, y, 1), ornObj=(0, 0, 0, 1))
+        position = self._get_goal_position().make_3d().tuple()
+        p.resetBasePositionAndOrientation(self.waypoint_body, posObj=position, ornObj=(0, 0, 0, 1))
 
     def _get_car_position(self):
-        x, y, _ = self.car.get_transform().position.tuple()
-        return x, y
+        return self.car.get_transform().position.get_xy()
 
     def _get_goal_position(self):
         return self._get_checkpoint(self.checkpoint_index)
@@ -134,11 +131,11 @@ class RacecarDrivingEnv(gym.Env):
         return self.checkpoints[index % len(self.checkpoints)]
 
     def _get_observation(self):
-
+        car_position = self.car.get_transform().position
         points = [
-            util.Vector3(*self.velocity, 0),
-            util.Vector3(*self._get_goal_position(), 0) - self.car.get_transform().position,
-            util.Vector3(*self._get_checkpoint(self.checkpoint_index + 1), 0) - self.car.get_transform().position,
+            self.velocity.make_3d(),
+            self._get_goal_position().make_3d() - car_position,
+            self._get_checkpoint(self.checkpoint_index + 1).make_3d() - car_position,
         ]
         observation = []
         car_inverse = self.car.get_transform().invert()

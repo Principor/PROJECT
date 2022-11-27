@@ -2,6 +2,49 @@ import numpy as np
 import pybullet as p
 
 
+class Vector2:
+    def __init__(self, x=0, y=0):
+        self.values = np.array([x, y])
+
+    def __add__(self, other):
+        return Vector2(*(self.values + other.values))
+
+    def __sub__(self, other):
+        return Vector2(*(self.values - other.values))
+
+    def __mul__(self, other):
+        if other is Vector2:
+            return self.values * other.values
+        return Vector2(*(self.values * other))
+
+    def __truediv__(self, other):
+        if other is Vector2:
+            return self.values / other.values
+        return Vector2(*(self.values / other))
+
+    def __str__(self):
+        return "(" + str(round(self.values[0], 2))\
+               + ", " + str(round(self.values[1], 2)) + ")"
+
+    def get_distance(self, other):
+        return (self - other).magnitude()
+
+    def magnitude(self):
+        return np.linalg.norm(self.values)
+
+    def normalise(self):
+        magnitude = self.magnitude()
+        if magnitude == 0:
+            return np.zeros_like(self.values)
+        return self / magnitude
+
+    def make_3d(self, z=0):
+        return Vector3(*self.values, z)
+
+    def tuple(self):
+        return tuple(self.values)
+
+
 class Vector3:
     def __init__(self, x=0, y=0, z=0):
         self.values = np.array([x, y, z])
@@ -48,6 +91,9 @@ class Vector3:
 
     def project_to_plane(self, normal):
         return self - self.project(normal)
+
+    def get_xy(self):
+        return Vector2(self.values[0], self.values[1])
 
     def tuple(self):
         return tuple(self.values)
