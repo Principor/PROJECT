@@ -2,65 +2,95 @@ import numpy as np
 import pybullet as p
 
 
-def make_vector(x, y, z):
-    return np.array([x, y, z])
+class Vector3:
+    def __init__(self, x=0, y=0, z=0):
+        self.values = np.array([x, y, z])
+
+    def __add__(self, other):
+        return Vector3(*(self.values + other.values))
+
+    def __sub__(self, other):
+        return Vector3(*(self.values - other.values))
+
+    def __mul__(self, other):
+        if other is Vector3:
+            return self.values * other.values
+        return Vector3(*(self.values * other))
+
+    def __truediv__(self, other):
+        if other is Vector3:
+            return self.values / other.values
+        return Vector3(*(self.values / other))
+
+    def __str__(self):
+        return "(" + str(round(self.values[0], 2))\
+               + ", " + str(round(self.values[1], 2))\
+               + ", " + str(round(self.values[2], 2)) + ")"
+
+    def dot(self, other):
+        return np.dot(self.values, other.values)
+
+    def cross(self, other):
+        return Vector3(*np.cross(self.values, other.values))
+
+    def project(self, other):
+        dot12 = np.dot(self.values, other.values)
+        dot22 = np.dot(other.values, other.values)
+        if dot22 == 0:
+            return Vector3()
+        return Vector3(*(other.values * dot12 / dot22))
+
+    def normalise(self):
+        norm = np.linalg.norm(self.values)
+        if norm == 0:
+            return np.zeros_like(self.values)
+        return self / norm
+
+    def project_to_plane(self, normal):
+        return self - self.project(normal)
+
+    def tuple(self):
+        return tuple(self.values)
+    
+
+class Quaternion:
+    def __init__(self, x=0, y=0, z=0, w=1):
+        self.values = np.array([x, y, z, w])
+
+    def tuple(self):
+        return tuple(self.values)
 
 
-def make_quaternion(x, y, z, w=None):
-    if w is None:
-        return np.array(p.getQuaternionFromEuler([x, y, z]))
-    else:
-        return np.array([x, y, z, w])
+class Transform:
+    def __init__(self, position, orientation):
+        self.position = position
+        self.orientation = orientation
 
+    def __mul__(self, other):
+        position, orientation = p.multiplyTransforms(*self.tuples(), *other.tuples())
+        return Transform(Vector3(*position), Quaternion(*orientation))
 
-def convert_to_numpy(transform):
-    position, orientation = transform
-    return np.array(position), np.array(orientation)
+    def invert(self):
+        position, orientation = p.invertTransform(*self.tuples())
+        return Transform(Vector3(*position), Quaternion(*orientation))
 
+    def transform_point(self, point):
+        other = Transform(point, Quaternion())
+        return (self * other).position
 
-def convert_from_numpy(transform):
-    position, orientation = transform
-    return position.tolist(), orientation.tolist()
+    def transform_direction(self, direction):
+        this = Transform(Vector3(), self.orientation)
+        other = Transform(direction, Quaternion())
+        return (this * other).position
+
+    def tuples(self):
+        return self.position.tuple(), self.orientation.tuple()
 
 
 def get_transform(body):
-    return convert_to_numpy(p.getBasePositionAndOrientation(body))
+    position, orientation = p.getBasePositionAndOrientation(body)
+    return Transform(Vector3(*position), Quaternion(*orientation))
 
 
-def multiply_transforms(transform1, transform2):
-    return convert_to_numpy(p.multiplyTransforms(*convert_from_numpy(transform1), *convert_from_numpy(transform2)))
-
-
-def invert_transform(transform):
-    return convert_to_numpy(p.invertTransform(*convert_from_numpy(transform)))
-
-
-def transform_position(transform, position):
-    new_position, _ = multiply_transforms(transform, (position, make_quaternion(0, 0, 0, 1)))
-    return np.array(new_position)
-
-
-def transform_direction(transform, direction):
-    _, rotation = transform
-    new_direction, _ = multiply_transforms((make_vector(0, 0, 0), rotation), (direction, make_quaternion(0, 0, 0, 1)))
-    return np.array(new_direction)
-
-
-def project_vector(vector1, vector2):
-    dot12 = np.dot(vector1, vector2)
-    dot22 = np.dot(vector2, vector2)
-    if dot22 == 0:
-        return make_vector(0, 0, 0)
-    return vector2 * dot12 / dot22
-
-
-def project_to_plane(vector, normal):
-    return vector - project_vector(vector, normal)
-
-
-def normalise(vector):
-    norm = np.linalg.norm(vector)
-    if norm == 0:
-        return np.zeros_like(vector)
-    return vector / norm
-
+def get_quaternion_from_euler(x, y, z):
+    return Quaternion(*p.getQuaternionFromEuler((x, y, z)))

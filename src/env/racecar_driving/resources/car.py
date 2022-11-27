@@ -62,7 +62,7 @@ class Car:
         return util.get_transform(self.body)
 
     def apply_force(self, position, force):
-        p.applyExternalForce(self.body, linkIndex=-1, posObj=position, forceObj=force, flags=p.WORLD_FRAME,
+        p.applyExternalForce(self.body, linkIndex=-1, posObj=position.tuple(), forceObj=force.tuple(), flags=p.WORLD_FRAME,
                              physicsClientId=self.client)
 
     def remove(self):
@@ -74,9 +74,9 @@ class Axle:
                  wheel_radius, wheel_mass, client):
         self.car = car
 
-        self.right_wheel = Wheel(car, util.make_vector(axle_width / 2, axle_position, axle_height), spring_length,
+        self.right_wheel = Wheel(car, util.Vector3(axle_width / 2, axle_position, axle_height), spring_length,
                                  spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, client)
-        self.left_wheel = Wheel(car, util.make_vector(-axle_width / 2, axle_position, axle_height), spring_length,
+        self.left_wheel = Wheel(car, util.Vector3(-axle_width / 2, axle_position, axle_height), spring_length,
                                 spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, client)
         self.wheels = [self.left_wheel, self.right_wheel]
 
@@ -114,7 +114,8 @@ class Axle:
 
 
 class Wheel:
-    def __init__(self, car, start_position, max_spring_length, spring_stiffness, damper_stiffness, radius, mass, client):
+    def __init__(self, car, start_position, max_spring_length, spring_stiffness, damper_stiffness, radius, mass,
+                 client):
         self.car = car
         self.start_position = start_position
         self.max_spring_length = max_spring_length
@@ -137,8 +138,8 @@ class Wheel:
         self.rollbar_force = 0
         self.spring_length = 0
         self.spring_speed = 0
-        self.velocity = self.contact_position = util.make_vector(0, 0, 0)
-        self.contact_normal = util.make_vector(0, 0, 0)
+        self.velocity = self.contact_position = util.Vector3(0, 0, 0)
+        self.contact_normal = util.Vector3(0, 0, 0)
         self.grounded = False
 
         self.client = client
@@ -148,20 +149,20 @@ class Wheel:
         previous_length = self.spring_length
 
         car_transform = self.car.get_transform()
-        ray_start = util.transform_position(car_transform, self.start_position)
-        ray_dir = util.transform_direction(car_transform, util.make_vector(0, 0, -1))
+        ray_start = car_transform.transform_point(self.start_position)
+        ray_dir = car_transform.transform_direction(util.Vector3(0, 0, -1))
         ray_end = ray_start + ray_dir * self.max_spring_length
-        _, _, fraction, position, normal = p.rayTest(ray_start, ray_end, physicsClientId=self.client)[0]
+        _, _, fraction, position, normal = p.rayTest(ray_start.tuple(), ray_end.tuple(), physicsClientId=self.client)[0]
 
-        self.contact_position = util.make_vector(*position)
-        self.contact_normal = util.make_vector(*normal)
+        self.contact_position = util.Vector3(*position)
+        self.contact_normal = util.Vector3(*normal)
         self.spring_length = fraction * self.max_spring_length
 
         if self.grounded:
             self.velocity = (self.contact_position - previous_position) / dt
             self.spring_speed = (self.spring_length - previous_length) / dt
         else:
-            self.velocity = util.make_vector(0, 0, 0)
+            self.velocity = util.Vector3(0, 0, 0)
             self.spring_speed = 0
         self.grounded = fraction < 1
 
@@ -169,23 +170,25 @@ class Wheel:
         if not self.grounded:
             return
 
+        car_transform = self.car.get_transform()
+
         spring_force = (self.max_spring_length - self.spring_length) * self.spring_stiffness
         damper_force = -self.spring_speed * self.damper_stiffness
         reaction_force = spring_force + damper_force + self.rollbar_force
-        reaction_dir = util.transform_direction(self.car.get_transform(), util.make_vector(0, 0, 1))
+        reaction_dir = self.car.get_transform().transform_direction(util.Vector3(0, 0, 1))
 
-        wheel_rotation = util.make_quaternion(0, 0, self.steering_angle)
-        wheel_transform = util.multiply_transforms(self.car.get_transform(),
-                                                   (util.make_vector(0, 0, 0), wheel_rotation))
+        wheel_rotation = util.get_quaternion_from_euler(0, 0, self.steering_angle)
+        wheel_local_transform = util.Transform(util.Vector3(), wheel_rotation)
+        wheel_transform = car_transform * wheel_local_transform
 
-        long_dir = util.transform_direction(wheel_transform, util.make_vector(0, 1, 0))
-        long_dir = util.project_to_plane(long_dir, self.contact_normal)
-        lat_dir = util.transform_direction(wheel_transform, util.make_vector(1, 0, 0))
-        lat_dir = util.project_to_plane(lat_dir, self.contact_normal)
+        long_dir = wheel_transform.transform_direction(util.Vector3(0, 1, 0))
+        long_dir = long_dir.project_to_plane(self.contact_normal)
+        lat_dir = wheel_transform.transform_direction(util.Vector3(1, 0, 0))
+        lat_dir = lat_dir.project_to_plane(self.contact_normal)
 
         long_force, lat_force = self._get_tyre_forces(long_dir, lat_dir, reaction_force)
 
-        final_force = long_force * long_dir + lat_force * lat_dir + reaction_force * reaction_dir
+        final_force = reaction_dir * reaction_force + long_dir * long_force + lat_dir * lat_force
 
         self.car.apply_force(self.contact_position, final_force)
 
@@ -210,8 +213,8 @@ class Wheel:
         self.angular_velocity -= np.clip(self.angular_velocity, -brake_deceleration, brake_deceleration)
 
     def _get_tyre_forces(self, long_dir, lat_dir, reaction_force):
-        long_speed = np.dot(self.velocity, long_dir)
-        lat_speed = np.dot(self.velocity, lat_dir)
+        long_speed = self.velocity.dot(long_dir)
+        lat_speed = self.velocity.dot(lat_dir)
 
         self.target_angular_velocity = long_speed / self.radius
 

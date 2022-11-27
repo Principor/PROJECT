@@ -124,7 +124,7 @@ class RacecarDrivingEnv(gym.Env):
         p.resetBasePositionAndOrientation(self.waypoint_body, posObj=(x, y, 1), ornObj=(0, 0, 0, 1))
 
     def _get_car_position(self):
-        (x, y, _), _ = self.car.get_transform()
+        x, y, _ = self.car.get_transform().position.tuple()
         return x, y
 
     def _get_goal_position(self):
@@ -134,12 +134,16 @@ class RacecarDrivingEnv(gym.Env):
         return self.checkpoints[index % len(self.checkpoints)]
 
     def _get_observation(self):
-        points = [self.velocity, np.subtract(self._get_goal_position(), self._get_car_position()),
-                  np.subtract(self._get_checkpoint(self.checkpoint_index + 1), self._get_car_position())]
+
+        points = [
+            util.Vector3(*self.velocity, 0),
+            util.Vector3(*self._get_goal_position(), 0) - self.car.get_transform().position,
+            util.Vector3(*self._get_checkpoint(self.checkpoint_index + 1), 0) - self.car.get_transform().position,
+        ]
         observation = []
+        car_inverse = self.car.get_transform().invert()
         for point in points:
-            vector = util.make_vector(*point, 0)
-            local = util.transform_direction(util.invert_transform(self.car.get_transform()), vector)
+            local = car_inverse.transform_direction(point).tuple()
             observation.append(local[0])
             observation.append(local[1])
 
