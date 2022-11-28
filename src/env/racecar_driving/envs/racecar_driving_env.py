@@ -8,6 +8,7 @@ import pybullet as p
 
 from src.env.racecar_driving.resources import car
 from src.env.racecar_driving.resources.util import Vector2
+from src.env.racecar_driving.resources.bezier import Bezier
 
 TIME_STEP = 0.01
 
@@ -24,8 +25,8 @@ class RacecarDrivingEnv(gym.Env):
             high=np.array([1, 1], dtype=np.float64)
         )
         self.observation_space = gym.spaces.box.Box(
-            low=np.full(6, -np.inf),
-            high=np.full(6, np.inf),
+            low=np.full(16, -np.inf),
+            high=np.full(16, np.inf),
         )
 
         self.gui = gui
@@ -58,17 +59,18 @@ class RacecarDrivingEnv(gym.Env):
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
 
-        self.checkpoints = [
-            Vector2(-30, -10), Vector2(-30, 10), Vector2(-20, 20), Vector2(20, 20), Vector2(30, 10), Vector2(20, 0),
-            Vector2(10, 10), Vector2(0, 10), Vector2(-10, 0), Vector2(-10, -10), Vector2(-20, -20)
-        ]
-        for i in range(len(self.checkpoints)):
-            p.addUserDebugLine(self._get_checkpoint(i).make_3d(0.1).tuple(),
-                               self._get_checkpoint(i + 1).make_3d(0.1).tuple(),
-                               lineColorRGB=(1, 0, 0),
-                               lineWidth=1,
-                               physicsClientId=self.client)
-        self.checkpoint_index = 0
+        self.bezier = Bezier(
+            Vector2(-114.67, 73.08), Vector2(-131.89, 89.42), Vector2(-103.53, 115.41), Vector2(-86.17, 100.00),
+            Vector2(-73.36, 88.62), Vector2(-60.55, 77.24), Vector2(-47.74, 65.87), Vector2(-28.08, 48.42),
+            Vector2(-15.36, 85.73), Vector2(3.95, 75.28), Vector2(24.56, 64.11), Vector2(59.82, 7.75),
+            Vector2(74.23, -3.90), Vector2(89.52, -16.26), Vector2(119.91, -8.10), Vector2(128.87, -25.71),
+            Vector2(135.91, -39.54), Vector2(141.08, -87.25), Vector2(117.49, -87.50), Vector2(46.57, -88.24),
+            Vector2(-24.34, -88.99),  Vector2(-95.26, -89.73), Vector2(-134.60, -90.14), Vector2(-99.41, -28.48),
+            Vector2(-66.72, -46.84), Vector2(-13.31, -76.84), Vector2(13.68, -48.74), Vector2(-1.46, -34.37),
+            Vector2(-39.20, 1.45), Vector2(-76.93, 37.26)
+        )
+        self.bezier.draw_lines(self.client)
+        self.segment_index = 0
 
         self.steps = 0
 
@@ -81,7 +83,7 @@ class RacecarDrivingEnv(gym.Env):
 
         current_position = self._get_car_position()
         while (current_distance := current_position.get_distance(self._get_goal_position())) < 3:
-            self.checkpoint_index = (self.checkpoint_index + 1) % len(self.checkpoints)
+            self.segment_index = (self.segment_index + 1) % self.bezier.num_segments
             self._move_waypoint()
         previous_distance = self.previous_position.get_distance(self._get_goal_position())
         reward = previous_distance - current_distance
@@ -96,16 +98,15 @@ class RacecarDrivingEnv(gym.Env):
         if self.car is not None:
             self.car.remove()
 
-        self.checkpoint_index = random.randrange(len(self.checkpoints))
+        self.segment_index = random.randrange(self.bezier.num_segments)
         self._move_waypoint()
 
-        start_position = self._get_checkpoint(self.checkpoint_index-1)
+        start_position = self._get_checkpoint(self.segment_index-1)
         difference = (self._get_goal_position() - start_position).tuple()
         direction = math.atan2(difference[1], difference[0]) - math.pi / 2
 
-        print(start_position, self._get_goal_position(), difference)
-
-        self.car = car.Car(self.client, start_position.make_3d(1.5).tuple(), p.getQuaternionFromEuler((0, 0, direction)))
+        self.car = car.Car(self.client, start_position.make_3d(1.5).tuple(),
+                           p.getQuaternionFromEuler((0, 0, direction)))
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
         self.steps = 0
@@ -118,30 +119,26 @@ class RacecarDrivingEnv(gym.Env):
         p.disconnect(physicsClientId=self.client)
 
     def _move_waypoint(self):
-        position = self._get_goal_position().make_3d().tuple()
+        position = self._get_goal_position().make_3d(1).tuple()
         p.resetBasePositionAndOrientation(self.waypoint_body, posObj=position, ornObj=(0, 0, 0, 1))
 
     def _get_car_position(self):
         return self.car.get_transform().position.get_xy()
 
     def _get_goal_position(self):
-        return self._get_checkpoint(self.checkpoint_index)
+        return self._get_checkpoint(self.segment_index)
 
     def _get_checkpoint(self, index):
-        return self.checkpoints[index % len(self.checkpoints)]
+        return self.bezier.get_segment_point(index, 0)
 
     def _get_observation(self):
         car_position = self.car.get_transform().position
-        points = [
-            self.velocity.make_3d(),
-            self._get_goal_position().make_3d() - car_position,
-            self._get_checkpoint(self.checkpoint_index + 1).make_3d() - car_position,
-        ]
+        points = [self.velocity.make_3d()]
+        points += [self.bezier.get_segment_point(self.segment_index, i).make_3d() - car_position for i in range(7)]
         observation = []
         car_inverse = self.car.get_transform().invert()
         for point in points:
             local = car_inverse.transform_direction(point).tuple()
             observation.append(local[0])
             observation.append(local[1])
-
         return np.array(observation, dtype=np.float32)

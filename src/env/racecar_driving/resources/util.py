@@ -22,6 +22,9 @@ class Vector2:
             return self.values / other.values
         return Vector2(*(self.values / other))
 
+    def __repr__(self):
+        return str(self)
+
     def __str__(self):
         return "(" + str(round(self.values[0], 2))\
                + ", " + str(round(self.values[1], 2)) + ")"
@@ -64,6 +67,9 @@ class Vector3:
         if other is Vector3:
             return self.values / other.values
         return Vector3(*(self.values / other))
+
+    def __repr__(self):
+        return str(self)
 
     def __str__(self):
         return "(" + str(round(self.values[0], 2))\
