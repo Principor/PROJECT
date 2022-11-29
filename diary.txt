@@ -28,3 +28,6 @@ Finally finished complete implementation of PPO.
 
 2022/11/21
 Agent can successfully drive to waypoints
+
+2022/11/29
+Basic "constant" racing environment is complete

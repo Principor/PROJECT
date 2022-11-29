@@ -11,6 +11,8 @@ from src.env.racecar_driving.resources.util import Vector2
 from src.env.racecar_driving.resources.bezier import Bezier
 
 TIME_STEP = 0.01
+SIM_STEPS = 10
+TRACK_WIDTH = 20
 
 
 class RacecarDrivingEnv(gym.Env):
@@ -50,12 +52,6 @@ class RacecarDrivingEnv(gym.Env):
 
         self.car = None
 
-        waypoint_shape = p.createVisualShape(p.GEOM_SPHERE, radius=1, rgbaColor=[0, 1, 0, 1])
-        self.waypoint_body = p.createMultiBody(baseMass=0,
-                                               basePosition=(0, 0, -1),
-                                               baseVisualShapeIndex=waypoint_shape,
-                                               physicsClientId=self.client)
-
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
 
@@ -69,7 +65,8 @@ class RacecarDrivingEnv(gym.Env):
             Vector2(-66.72, -46.84), Vector2(-13.31, -76.84), Vector2(13.68, -48.74), Vector2(-1.46, -34.37),
             Vector2(-39.20, 1.45), Vector2(-76.93, 37.26)
         )
-        self.bezier.draw_lines(self.client)
+        print(self.bezier.get_total_length())
+        self.bezier.draw_lines(self.client, TRACK_WIDTH)
 
         self.previous_progress = 0
         self.segment_index = 0
@@ -85,12 +82,11 @@ class RacecarDrivingEnv(gym.Env):
         current_position = self._get_car_position()
 
         correct_segment = False
-        t = 0
+        t, distance = None, None
         while not correct_segment:
-            t, _ = self.bezier.get_distance_from_curve(current_position, self.segment_index)
+            t, distance = self.bezier.get_distance_from_curve(current_position, self.segment_index)
             if t == 1:
                 self.segment_index += 1
-                self._move_waypoint()
             else:
                 break
 
@@ -104,27 +100,27 @@ class RacecarDrivingEnv(gym.Env):
 
         reward = progress_difference
 
-        self.velocity = (current_position - self.previous_position) / TIME_STEP
+        self.velocity = (current_position - self.previous_position) / (TIME_STEP * SIM_STEPS)
         self.previous_position = current_position
         self.previous_progress = current_progress
         self.steps += 1
 
-        return self._get_observation(), reward, self.steps >= 200, {}
+        return self._get_observation(), reward, self.steps >= 1000 or distance > TRACK_WIDTH / 2, {}
 
     def reset(self, seed=None, options=None):
         if self.car is not None:
             self.car.remove()
 
         self.segment_index = random.randrange(self.bezier.num_segments)
-        self._move_waypoint()
+        t = random.random()
 
-        start_position = self._get_checkpoint(self.segment_index)
-        difference = (self._get_goal_position() - start_position).tuple()
-        direction = math.atan2(difference[1], difference[0]) - math.pi / 2
+        start_position = self.bezier.get_curve_point(self.segment_index, t)
+        direction = self.bezier.get_direction(self.segment_index, t).tuple()
+        angle = math.atan2(direction[1], direction[0]) - math.pi / 2
 
         self.car = car.Car(self.client, start_position.make_3d(1.5).tuple(),
-                           p.getQuaternionFromEuler((0, 0, direction)))
-        self.previous_progress = 0
+                           p.getQuaternionFromEuler((0, 0, angle)))
+        self.previous_progress = self.bezier.get_total_progress(self.segment_index, t)
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
         self.steps = 0
@@ -136,18 +132,8 @@ class RacecarDrivingEnv(gym.Env):
     def close(self):
         p.disconnect(physicsClientId=self.client)
 
-    def _move_waypoint(self):
-        position = self._get_goal_position().make_3d(1).tuple()
-        p.resetBasePositionAndOrientation(self.waypoint_body, posObj=position, ornObj=(0, 0, 0, 1))
-
     def _get_car_position(self):
         return self.car.get_transform().position.get_xy()
-
-    def _get_goal_position(self):
-        return self._get_checkpoint(self.segment_index+1)
-
-    def _get_checkpoint(self, index):
-        return self.bezier.get_segment_point(index, 0)
 
     def _get_observation(self):
         car_position = self.car.get_transform().position

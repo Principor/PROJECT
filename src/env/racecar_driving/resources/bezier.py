@@ -21,7 +21,7 @@ def split_at_point(a, b, c, d, t):
 
 
 def get_lerp_points(a, b, c, d, t):
-    points = [[0 for _ in range(4 - i)] for i in range(4)]
+    points = [[Vector2() for _ in range(4 - i)] for i in range(4)]
     points[0] = [a, b, c, d]
     for i in range(1, 4):
         for j in range(4 - i):
@@ -111,10 +111,22 @@ class Bezier:
     def get_control_point(self, point_index):
         return self.control_points[point_index % self.num_points]
 
-    def draw_lines(self, client):
-        previous_point = self.get_segment_point(0, 0).make_3d(0.1)
+    def draw_lines(self, client, TRACK_WIDTH):
+        centre_points = [self.get_segment_point(0, 0)]
         for segment in range(self.num_segments):
-            points = split_curve_recursive(*tuple(self.get_segment_points(segment)))
+            centre_points += split_curve_recursive(*tuple(self.get_segment_points(segment)))
+        num_points = len(centre_points)
+        print(num_points)
+        left_points, right_points = [], []
+        for i in range(num_points):
+            mid_point = centre_points[i]
+            direction = (centre_points[(i+1) % num_points] - centre_points[i-1]).normalised()
+            offset = direction.rotate_90() * (TRACK_WIDTH / 2)
+            left_points.append(mid_point - offset)
+            right_points.append(mid_point + offset)
+
+        for points in [left_points, right_points]:
+            previous_point = points[-1].make_3d(0.1)
             for point in points:
                 current_point = point.make_3d(0.1)
                 p.addUserDebugLine(previous_point.tuple(),
@@ -123,6 +135,9 @@ class Bezier:
                                    lineWidth=1,
                                    physicsClientId=client)
                 previous_point = current_point
+
+    def get_curve_point(self, segment_index, t):
+        return get_curve_point(*self.get_segment_points(segment_index), t)
 
     def get_total_progress(self, segment_index, t):
         total = 0
@@ -148,6 +163,10 @@ class Bezier:
 
     def get_distance_from_curve(self, point, segment_index):
         return get_distance_from_curve(point, *self.get_segment_points(segment_index))
+
+    def get_direction(self, segment_index, t):
+        lerp_points = get_lerp_points(*self.get_segment_points(segment_index), t)
+        return (lerp_points[2][1] - lerp_points[2][0]).normalised()
 
 
 class SturmSequence:

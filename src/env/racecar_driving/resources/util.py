@@ -47,6 +47,10 @@ class Vector2:
             return np.zeros_like(self.values)
         return self / magnitude
 
+    def rotate_90(self):
+        x, y = self.values
+        return Vector2(y, -x)
+
     def make_3d(self, z=0):
         return Vector3(*self.values, z)
 
