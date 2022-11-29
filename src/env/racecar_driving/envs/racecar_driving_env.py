@@ -70,26 +70,43 @@ class RacecarDrivingEnv(gym.Env):
             Vector2(-39.20, 1.45), Vector2(-76.93, 37.26)
         )
         self.bezier.draw_lines(self.client)
+
+        self.previous_progress = 0
         self.segment_index = 0
 
         self.steps = 0
 
     def step(self, action):
-        for _ in range(10):
+        for _ in range(SIM_STEPS):
             p.stepSimulation(physicsClientId=self.client)
             self.car.update(action[0], action[1], TIME_STEP)
             if self.gui:
                 time.sleep(TIME_STEP)
-
         current_position = self._get_car_position()
-        while (current_distance := current_position.get_distance(self._get_goal_position())) < 3:
-            self.segment_index = (self.segment_index + 1) % self.bezier.num_segments
-            self._move_waypoint()
-        previous_distance = self.previous_position.get_distance(self._get_goal_position())
-        reward = previous_distance - current_distance
+
+        correct_segment = False
+        t = 0
+        while not correct_segment:
+            t, _ = self.bezier.get_distance_from_curve(current_position, self.segment_index)
+            if t == 1:
+                self.segment_index += 1
+                self._move_waypoint()
+            else:
+                break
+
+        current_progress = self.bezier.get_total_progress(self.segment_index, t)
+        progress_difference = current_progress - self.previous_progress
+        total_length = self.bezier.get_total_length()
+        if progress_difference > total_length / 2:
+            progress_difference -= total_length
+        elif progress_difference < -total_length / 2:
+            progress_difference += total_length
+
+        reward = progress_difference
 
         self.velocity = (current_position - self.previous_position) / TIME_STEP
         self.previous_position = current_position
+        self.previous_progress = current_progress
         self.steps += 1
 
         return self._get_observation(), reward, self.steps >= 200, {}
@@ -101,12 +118,13 @@ class RacecarDrivingEnv(gym.Env):
         self.segment_index = random.randrange(self.bezier.num_segments)
         self._move_waypoint()
 
-        start_position = self._get_checkpoint(self.segment_index-1)
+        start_position = self._get_checkpoint(self.segment_index)
         difference = (self._get_goal_position() - start_position).tuple()
         direction = math.atan2(difference[1], difference[0]) - math.pi / 2
 
         self.car = car.Car(self.client, start_position.make_3d(1.5).tuple(),
                            p.getQuaternionFromEuler((0, 0, direction)))
+        self.previous_progress = 0
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
         self.steps = 0
@@ -126,7 +144,7 @@ class RacecarDrivingEnv(gym.Env):
         return self.car.get_transform().position.get_xy()
 
     def _get_goal_position(self):
-        return self._get_checkpoint(self.segment_index)
+        return self._get_checkpoint(self.segment_index+1)
 
     def _get_checkpoint(self, index):
         return self.bezier.get_segment_point(index, 0)

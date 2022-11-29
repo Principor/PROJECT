@@ -22,6 +22,9 @@ class Vector2:
             return self.values / other.values
         return Vector2(*(self.values / other))
 
+    def __neg__(self):
+        return Vector2(*-self.values)
+
     def __repr__(self):
         return str(self)
 
@@ -29,13 +32,16 @@ class Vector2:
         return "(" + str(round(self.values[0], 2))\
                + ", " + str(round(self.values[1], 2)) + ")"
 
+    def dot(self, other):
+        return np.dot(self.values, other.values)
+
     def get_distance(self, other):
         return (self - other).magnitude()
 
     def magnitude(self):
         return np.linalg.norm(self.values)
 
-    def normalise(self):
+    def normalised(self):
         magnitude = self.magnitude()
         if magnitude == 0:
             return np.zeros_like(self.values)
@@ -68,6 +74,9 @@ class Vector3:
             return self.values / other.values
         return Vector3(*(self.values / other))
 
+    def __neg__(self):
+        return Vector3(*-self.values)
+
     def __repr__(self):
         return str(self)
 
@@ -89,7 +98,7 @@ class Vector3:
             return Vector3()
         return Vector3(*(other.values * dot12 / dot22))
 
-    def normalise(self):
+    def normalised(self):
         norm = np.linalg.norm(self.values)
         if norm == 0:
             return np.zeros_like(self.values)
