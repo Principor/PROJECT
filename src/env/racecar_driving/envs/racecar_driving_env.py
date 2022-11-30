@@ -65,7 +65,6 @@ class RacecarDrivingEnv(gym.Env):
             Vector2(-66.72, -46.84), Vector2(-13.31, -76.84), Vector2(13.68, -48.74), Vector2(-1.46, -34.37),
             Vector2(-39.20, 1.45), Vector2(-76.93, 37.26)
         )
-        print(self.bezier.get_total_length())
         self.bezier.draw_lines(self.client, TRACK_WIDTH)
 
         self.previous_progress = 0

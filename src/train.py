@@ -11,9 +11,9 @@ from model import Model
 import racecar_driving
 
 # Parameters
-NUM_UPDATES = 200
+NUM_UPDATES = 150
 NUM_ENVS = 4
-NUM_STEPS = 512
+NUM_STEPS = 1024
 BATCH_SIZE = 64
 
 NUM_EPOCHS = 10
@@ -27,7 +27,7 @@ MAX_GRAD_NORM = 0.5
 
 HIDDEN_SIZE = 128
 
-LOG_FREQUENCY = 10
+LOG_FREQUENCY = 5
 RUN_NAME = "ppo"
 
 
@@ -184,6 +184,7 @@ class Agent:
 
             for batch in batches:
                 returns, advantages, states, actions, old_probs = batch
+
                 advantages = torch.unsqueeze(advantages, dim=-1)
 
                 # Get current distribution and value from models

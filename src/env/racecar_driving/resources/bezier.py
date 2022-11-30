@@ -116,7 +116,6 @@ class Bezier:
         for segment in range(self.num_segments):
             centre_points += split_curve_recursive(*tuple(self.get_segment_points(segment)))
         num_points = len(centre_points)
-        print(num_points)
         left_points, right_points = [], []
         for i in range(num_points):
             mid_point = centre_points[i]

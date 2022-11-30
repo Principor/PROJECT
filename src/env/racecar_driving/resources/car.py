@@ -26,10 +26,22 @@ class Car:
     def __init__(self, client, position, orientation):
         self.client = client
 
-        size = [1, 2, 0.5]
+        half_extents = (1, 2, 0.5)
+        center_of_mass_y = -0.3
+        center_of_mass_z = -0.3
+        shape_shift = (0, -center_of_mass_y, -center_of_mass_z)
+        axle_width = 2.2
+        axle_height = -0.25
+        spring_length = 1
+        wheel_radius = 0.2
+        wheel_mass = 10
 
-        body_collision_shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=size)
-        body_visual_shape = p.createVisualShape(p.GEOM_BOX, halfExtents=size)
+        body_collision_shape = p.createCollisionShape(p.GEOM_BOX,
+                                                      halfExtents=half_extents,
+                                                      collisionFramePosition=shape_shift)
+        body_visual_shape = p.createVisualShape(p.GEOM_BOX,
+                                                halfExtents=half_extents,
+                                                visualFramePosition=shape_shift)
 
         self.body = p.createMultiBody(baseMass=100,
                                       baseCollisionShapeIndex=body_collision_shape,
@@ -38,11 +50,14 @@ class Car:
                                       baseOrientation=orientation,
                                       physicsClientId=client)
 
-        self.front_axle = Axle(self, 1.5, 2.2, -0.25, 1, 500, 50, 0.2, 10, self.client)
-        self.rear_axle = Axle(self, -1.5, 2.2, -0.25, 1, 500, 50, 0.2, 10, self.client)
+        p.changeDynamics(self.body, -1, linearDamping=0.002)
+        self.front_axle = Axle(self, 1.5 - center_of_mass_y, axle_width, axle_height-center_of_mass_z, spring_length,
+                               400, 40, 800, wheel_radius, wheel_mass, self.client)
+        self.rear_axle = Axle(self, -1.5 - center_of_mass_y, axle_width, axle_height-center_of_mass_z, spring_length,
+                              600, 60, 1200, wheel_radius, wheel_mass, self.client)
 
         self.horsepower = 50
-        self.max_brake_torque = 300
+        self.max_brake_torque = 150
 
     def update(self, throttle, steering, dt):
         max_motor_torque = self.horsepower * 7127 / max(self.rear_axle.get_rpm(), 1000)
@@ -52,8 +67,10 @@ class Car:
         brake_torque = np.clip(-throttle, 0, 1) * self.max_brake_torque
 
         self.front_axle.set_steering_angle(steering_angle)
-        self.front_axle.set_brake_torque(brake_torque)
         self.front_axle.set_motor_torque(motor_torque)
+
+        self.front_axle.set_brake_torque(brake_torque)
+        self.rear_axle.set_brake_torque(brake_torque)
 
         self.front_axle.update(dt)
         self.rear_axle.update(dt)
@@ -62,8 +79,8 @@ class Car:
         return util.get_transform(self.body)
 
     def apply_force(self, position, force):
-        p.applyExternalForce(self.body, linkIndex=-1, posObj=position.tuple(), forceObj=force.tuple(), flags=p.WORLD_FRAME,
-                             physicsClientId=self.client)
+        p.applyExternalForce(self.body, linkIndex=-1, posObj=position.tuple(), forceObj=force.tuple(),
+                             flags=p.WORLD_FRAME, physicsClientId=self.client)
 
     def remove(self):
         p.removeBody(self.body)
@@ -71,7 +88,7 @@ class Car:
 
 class Axle:
     def __init__(self, car, axle_position, axle_width, axle_height, spring_length, spring_stiffness, damper_stiffness,
-                 wheel_radius, wheel_mass, client):
+                 rollbar_stiffness, wheel_radius, wheel_mass, client):
         self.car = car
 
         self.right_wheel = Wheel(car, util.Vector3(axle_width / 2, axle_position, axle_height), spring_length,
@@ -79,6 +96,8 @@ class Axle:
         self.left_wheel = Wheel(car, util.Vector3(-axle_width / 2, axle_position, axle_height), spring_length,
                                 spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, client)
         self.wheels = [self.left_wheel, self.right_wheel]
+
+        self.rollbar_stiffness = rollbar_stiffness
 
     def set_steering_angle(self, steering_angle):
         for wheel in self.wheels:
@@ -97,7 +116,7 @@ class Axle:
             wheel.update_ground_contact(dt)
 
         difference = self.left_wheel.spring_length - self.right_wheel.spring_length
-        rollbar_force = difference * 500
+        rollbar_force = difference * self.rollbar_stiffness
         self.left_wheel.rollbar_force = -rollbar_force
         self.right_wheel.rollbar_force = rollbar_force
 
@@ -228,7 +247,7 @@ class Wheel:
             lat_force = force_from_slip(reaction_force, 10, 1.3, 2, 0, lat_slip)
         else:
             max_long_force = get_force_asymptote(reaction_force, 10, 1.6, 2, 0)
-            long_force = (rolling_velocity-long_speed) * (reaction_force / 9.8) * 100
+            long_force = (rolling_velocity - long_speed) * (reaction_force / 9.8) * 100
             long_force = np.clip(long_force, -max_long_force, max_long_force)
 
             max_lat_force = get_force_asymptote(reaction_force, 10, 1.3, 2, 0)

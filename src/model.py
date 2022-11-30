@@ -16,6 +16,8 @@ class Model(nn.Module):
         self.actor_base = nn.Sequential(
             nn.Linear(state_size, hidden_size),
             nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
         )
         self.mean = nn.Linear(hidden_size, action_size)
         self.log_std = nn.Sequential(
@@ -24,6 +26,8 @@ class Model(nn.Module):
 
         self.critic = nn.Sequential(
             nn.Linear(state_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
