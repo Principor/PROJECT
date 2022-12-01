@@ -10,15 +10,21 @@ from src.env.racecar_driving.resources import car
 from src.env.racecar_driving.resources.util import Vector2
 from src.env.racecar_driving.resources.bezier import Bezier
 
+# Simulation Parameters
 TIME_STEP = 0.01
 SIM_STEPS = 10
 TRACK_WIDTH = 20
 
 
 class RacecarDrivingEnv(gym.Env):
+    """
+    Gym environment for driving a car around a race track
+
+    :param gui: Create environment with debugger window
+    """
+
     metadata = {
         'render_modes': ['human'],
-        'render_fps': 60
     }
 
     def __init__(self, gui=False):
@@ -73,6 +79,12 @@ class RacecarDrivingEnv(gym.Env):
         self.steps = 0
 
     def step(self, action):
+        """
+        Perform one time-step of the environment
+
+        :param action: throttle/brake and steering angle
+        :return: observation, reward, terminal, info
+        """
         for _ in range(SIM_STEPS):
             p.stepSimulation(physicsClientId=self.client)
             self.car.update(action[0], action[1], TIME_STEP)
@@ -80,6 +92,7 @@ class RacecarDrivingEnv(gym.Env):
                 time.sleep(TIME_STEP)
         current_position = self._get_car_position()
 
+        # Increase segment index if car moved into next segment
         correct_segment = False
         t, distance = None, None
         while not correct_segment:
@@ -89,6 +102,7 @@ class RacecarDrivingEnv(gym.Env):
             else:
                 break
 
+        # Calculate distance along track travelled this step
         current_progress = self.bezier.get_total_progress(self.segment_index, t)
         progress_difference = current_progress - self.previous_progress
         total_length = self.bezier.get_total_length()
@@ -107,6 +121,13 @@ class RacecarDrivingEnv(gym.Env):
         return self._get_observation(), reward, self.steps >= 1000 or distance > TRACK_WIDTH / 2, {}
 
     def reset(self, seed=None, options=None):
+        """
+        Start a new episode, car will be sent to random point on the track
+
+        :param seed: None
+        :param options:  None
+        :return: observation
+        """
         if self.car is not None:
             self.car.remove()
 
@@ -129,12 +150,18 @@ class RacecarDrivingEnv(gym.Env):
         pass
 
     def close(self):
+        """
+        Close the environment
+        """
         p.disconnect(physicsClientId=self.client)
 
     def _get_car_position(self):
+        # Get current position of the car in 2D
         return self.car.get_transform().position.get_xy()
 
     def _get_observation(self):
+        # Get the current observation: velocity of the car and positions of current and next segment control points,
+        # all in local space
         car_position = self.car.get_transform().position
         points = [self.velocity.make_3d()]
         points += [self.bezier.get_segment_point(self.segment_index, i).make_3d() - car_position for i in range(7)]

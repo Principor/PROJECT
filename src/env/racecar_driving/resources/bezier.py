@@ -4,10 +4,29 @@ from racecar_driving.resources.util import Vector2
 
 
 def get_length(a, b, c, d):
+    """
+    Approximate the length of the curve
+
+    :param a: 1st control point
+    :param b: 2nd control point
+    :param c: 3rd control point
+    :param d: 4th Control point
+    :return: The length of the curve
+    """
     return ((a.get_distance(b) + b.get_distance(c) + c.get_distance(d)) + a.get_distance(d)) / 2
 
 
 def split_curve_recursive(a, b, c, d, max_length=5):
+    """
+    Split a curve into sub-curves smaller than max_length
+
+    :param a: 1st control point
+    :param b: 2nd control point
+    :param c: 3rd control point
+    :param d: 4th Control point
+    :param max_length: Maximum length of the sub curves
+    :return:
+    """
     if get_length(a, b, c, d) < max_length:
         return [d]
     curve1, curve2 = split_at_point(a, b, c, d, 0.5)
@@ -15,12 +34,32 @@ def split_curve_recursive(a, b, c, d, max_length=5):
 
 
 def split_at_point(a, b, c, d, t):
+    """
+    Split a curve at the point q(t)
+
+    :param a: 1st control point
+    :param b: 2nd control point
+    :param c: 3rd control point
+    :param d: 4th Control point
+    :param t: The point to split at
+    :return: Control points of two resulting curves
+    """
     lerp_points = get_lerp_points(a, b, c, d, t)
     return ((lerp_points[0][0], lerp_points[1][0], lerp_points[2][0], lerp_points[3][0]),
             (lerp_points[3][0], lerp_points[2][1], lerp_points[1][2], lerp_points[0][3]))
 
 
 def get_lerp_points(a, b, c, d, t):
+    """
+    Get all resulting lerp points the curve for point t
+
+    :param a: 1st control point
+    :param b: 2nd control point
+    :param c: 3rd control point
+    :param d: 4th Control point
+    :param t: The proportion along the curve to lerp to
+    :return: 2D-array of resulting points
+    """
     points = [[Vector2() for _ in range(4 - i)] for i in range(4)]
     points[0] = [a, b, c, d]
     for i in range(1, 4):
@@ -30,16 +69,39 @@ def get_lerp_points(a, b, c, d, t):
 
 
 def get_curve_point(a, b, c, d, t):
+    """
+    Get the point q(t) of the curve
+
+    :param a: 1st control point
+    :param b: 2nd control point
+    :param c: 3rd control point
+    :param d: 4th Control point
+    :param t: The proportion along the curve
+    :return: The resulting point on the curve
+    """
     return a * (1 - t) ** 3 + b * t * (1 - t) ** 2 * 3 + c * t ** 2 * (1 - t) * 3 + d * t ** 3
 
 
 def get_distance_from_curve(point, a, b, c, d):
+    """
+    Estimate distance from the curve, and t of closest point
+
+    :param point: Point to find distance from
+    :param a: 1st control point
+    :param b: 2nd control point
+    :param c: 3rd control point
+    :param d: 4th Control point
+    :return: t, distance
+    """
+
+    # Find roots of (p-q(t))q'(t) = 0 and calculate which of these is closest to the point
+
     dir0 = (a - b).normalised()
     dir1 = (b - c).normalised()
     dir2 = (c - d).normalised()
+    # Stop issues from all points lying on a straight line
     if dir0 == dir1 and dir1 == dir2:
-        x, y = dir0.tuple()
-        orthogonal = Vector2(-y, x)
+        orthogonal = dir0.rotate_90()
         a += orthogonal * 1e-4
 
     tolerance = 1e-3 / get_length(a, b, c, d)  # Find root to approximately the nearest centimetre
@@ -67,7 +129,10 @@ def get_distance_from_curve(point, a, b, c, d):
     coefficient4 += inverse_lead * point.dot(k)
     coefficient5 += inverse_lead * point.dot(m)
 
+    # Create sturm sequence to find how many roots are in a given interval
     sequence = SturmSequence(coefficient0, coefficient1, coefficient2, coefficient3, coefficient4, coefficient5)
+
+    # Reduce intervals until the range of the root is less than the tolerance
     intervals = [(tolerance, 1 - tolerance)]
     num_expected_roots = sequence.get_sign_changes(tolerance) - sequence.get_sign_changes(1 - tolerance)
     roots = []
@@ -84,6 +149,8 @@ def get_distance_from_curve(point, a, b, c, d):
             roots.append(mid)
         else:
             intervals += [(start, mid), (mid, end)]
+
+    # Calculate which root is closest
     roots += [0, 1]
     min_dist = float('inf')
     closest_root = 0
@@ -97,21 +164,51 @@ def get_distance_from_curve(point, a, b, c, d):
 
 
 class Bezier:
+    """
+    Contains looped Bézier spline
+
+    :param args: Points on the spline
+    """
     def __init__(self, *args):
         self.control_points = args
         self.num_points = len(self.control_points)
         self.num_segments = self.num_points // 3
 
     def get_segment_points(self, segment_index):
+        """
+        Get control points of a segment
+
+        :param segment_index: The index of the segment
+        :return: The control points
+        """
         return tuple(self.get_segment_point(segment_index, i) for i in range(4))
 
     def get_segment_point(self, segment_index, point_index):
+        """
+        Get one of the segment's control points
+
+        :param segment_index: The index of the segment
+        :param point_index: The index of the control points
+        :return: The control point
+        """
         return self.get_control_point(segment_index * 3 + point_index)
 
     def get_control_point(self, point_index):
+        """
+        Get a control point on the spline
+
+        :param point_index: The index of the control point
+        :return: The control point
+        """
         return self.control_points[point_index % self.num_points]
 
-    def draw_lines(self, client, TRACK_WIDTH):
+    def draw_lines(self, client, track_width):
+        """
+        Draw lines around the track limits in the debugger
+
+        :param client: The client to draw in
+        :param track_width: The width of the track
+        """
         centre_points = [self.get_segment_point(0, 0)]
         for segment in range(self.num_segments):
             centre_points += split_curve_recursive(*tuple(self.get_segment_points(segment)))
@@ -120,7 +217,7 @@ class Bezier:
         for i in range(num_points):
             mid_point = centre_points[i]
             direction = (centre_points[(i+1) % num_points] - centre_points[i-1]).normalised()
-            offset = direction.rotate_90() * (TRACK_WIDTH / 2)
+            offset = direction.rotate_90() * (track_width / 2)
             left_points.append(mid_point - offset)
             right_points.append(mid_point + offset)
 
@@ -136,9 +233,23 @@ class Bezier:
                 previous_point = current_point
 
     def get_curve_point(self, segment_index, t):
+        """
+        Get point along the curve
+
+        :param segment_index: The segment to get the point on
+        :param t: The proportion along the curve
+        :return: The point on the curve
+        """
         return get_curve_point(*self.get_segment_points(segment_index), t)
 
     def get_total_progress(self, segment_index, t):
+        """
+        Get how far along the curve (in metres) a point is
+
+        :param segment_index: The index of the segment of the current point
+        :param t: The proportion along the current segment of the point
+        :return: The total distance from the start of the spline
+        """
         total = 0
         for i in range(segment_index):
             total += self.get_segment_length(i)
@@ -146,21 +257,47 @@ class Bezier:
         return total
 
     def get_segment_progress(self, segment_index, t):
+        """
+        Get how far along a segment (in metres) a point is
+
+        :param segment_index: The index of the segment
+        :param t: The proportion along the segment
+        :return: The distance from the start of the segment
+        """
         curve1, curve2 = split_at_point(*self.get_segment_points(segment_index), t)
         done = get_length(*curve1)
         remaining = get_length(*curve2)
         return done / (done + remaining)
 
     def get_total_length(self):
+        """
+        Get the total length of the whole spline
+
+        :return: The total length of the spline
+        """
         total = 0
         for i in range(self.num_segments):
             total += self.get_segment_length(i)
         return total
 
     def get_segment_length(self, segment_index):
+        """
+        Get the length of a segment
+
+        :param segment_index: The index of the segment
+        :return: The length of the segment
+        """
         return get_length(*self.get_segment_points(segment_index))
 
     def get_distance_from_curve(self, point, segment_index):
+
+        """
+        Estimate distance from a segment, and t of closest point
+
+        :param point: Point to find distance from
+        :param segment_index: The index of the segment
+        :return: t, distance
+        """
         return get_distance_from_curve(point, *self.get_segment_points(segment_index))
 
     def get_direction(self, segment_index, t):
@@ -169,6 +306,11 @@ class Bezier:
 
 
 class SturmSequence:
+    """
+    Generate sequences required for solving a polynomial using Sturm's Theory
+
+    :param args: Coefficients of the polynomial to solve
+    """
     def __init__(self, *args):
 
         self.degree = len(args) - 1
@@ -193,6 +335,12 @@ class SturmSequence:
             self.sequence[i] = [-self.sequence[i][j] for j in range(self.degree + 1)]
 
     def get_sign_changes(self, t):
+        """
+        Calculate sign changes in the sequence for given value
+
+        :param t: Input to the polynomials
+        :return: Number of sign changes
+        """
         changes = 0
         previous = self._solve_polynomial(t, 0) >= 0
         for i in range(1, self.degree + 1):
@@ -202,6 +350,13 @@ class SturmSequence:
         return changes
 
     def _solve_polynomial(self, t, index):
+        """
+        Solve a polynomial occupying on column of the sequence
+
+        :param t: Input of the polynomial
+        :param index: Index of the sequence to solve
+        :return: Result of the polynomial
+        """
         total = 0
         for i in range(self.degree + 1):
             total += self.sequence[index][i] * t ** (self.degree - i)
