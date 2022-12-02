@@ -1,0 +1,72 @@
+import pickle
+
+import gym
+import numpy as np
+import torch
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+import matplotlib.pyplot as plt
+
+from model import Model
+import racecar_driving
+
+new_telemetry = True
+plot_throttle = False
+plot_position = True
+
+def main():
+    if new_telemetry:
+        env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', save_telemetry=True, random_start=False)])
+        env = VecNormalize.load("../models/normaliser", env)    # Load normaliser generated during training so inputs match
+        actor = Model(env.observation_space.shape[0], env.action_space.shape[0], 128)
+        actor.load_state_dict(torch.load("../models/ppo/model.pth"))
+
+        done = False
+        observation = env.reset()
+        while not done:
+            action = actor(torch.tensor(observation, dtype=torch.float32))[0].sample().detach().numpy()
+            observation, reward, done, info = env.step(action)
+
+    with open('../telemetry/output.pkl', 'rb') as file:
+        data = pickle.load(file)
+        track = data["track"]
+        telemetry = data["telemetry"]
+
+        start_index = 1
+        while telemetry[start_index][0] == telemetry[0][0]:
+            start_index += 1
+
+        end_index = len(telemetry) - 1
+        while telemetry[end_index][0] > track.num_segments * 2 - 1:
+            end_index -= 1
+
+        telemetry = telemetry[start_index:end_index]
+
+        if plot_throttle:
+            throttle = np.clip(np.array(telemetry)[:, 2], 0, 1)
+            brake = np.clip(-np.array(telemetry)[:, 2], 0, 1)
+            plt.plot(np.arange(len(telemetry)), throttle, color='g')
+            plt.plot(np.arange(len(telemetry)), brake, color='r')
+            plt.show()
+
+        if plot_position:
+            left_points = []
+            right_points = []
+            car_points = []
+            for item in telemetry:
+                segment_index = item[0]
+                t = item[1]
+                car_position = item[2]
+                mid_point = track.get_curve_point(segment_index, t)
+                right = track.get_direction(segment_index, t).rotate_90()
+                left_points.append((mid_point - right * 10).tuple())
+                right_points.append((mid_point + right * 10).tuple())
+                car_points.append(car_position.tuple())
+
+            plt.plot([x for x, _ in left_points], [y for _, y in left_points], color="black")
+            plt.plot([x for x, _ in right_points], [y for _, y in right_points], color="black")
+            plt.plot([x for x, _ in car_points], [y for _, y in car_points], color="blue")
+            plt.show()
+
+
+if __name__ == '__main__':
+    main()
