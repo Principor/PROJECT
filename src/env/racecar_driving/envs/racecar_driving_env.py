@@ -1,4 +1,6 @@
 import math
+import os
+import pickle
 import random
 import time
 
@@ -21,13 +23,15 @@ class RacecarDrivingEnv(gym.Env):
     Gym environment for driving a car around a race track
 
     :param gui: Create environment with debugger window
+    :param random_start: Whether to start from a random point or fixed point
+    :param save_telemetry: Record positioning and inputs of the car at all points
     """
 
     metadata = {
         'render_modes': ['human'],
     }
 
-    def __init__(self, gui=False):
+    def __init__(self, gui=False, random_start=True, save_telemetry=False):
         self.action_space = gym.spaces.box.Box(
             low=np.array([-1, -1], dtype=np.float64),
             high=np.array([1, 1], dtype=np.float64)
@@ -38,6 +42,8 @@ class RacecarDrivingEnv(gym.Env):
         )
 
         self.gui = gui
+        self.random_start = random_start
+        self.save_telemetry = save_telemetry
 
         self.client = p.connect(p.GUI if self.gui else p.DIRECT)
         p.setTimeStep(TIME_STEP, physicsClientId=self.client)
@@ -77,6 +83,8 @@ class RacecarDrivingEnv(gym.Env):
         self.segment_index = 0
 
         self.steps = 0
+
+        self.telemetry = []
 
     def step(self, action):
         """
@@ -118,6 +126,10 @@ class RacecarDrivingEnv(gym.Env):
         self.previous_progress = current_progress
         self.steps += 1
 
+        if self.save_telemetry:
+            self.telemetry.append([self.segment_index, t, current_position, self.velocity.magnitude(),
+                                   action[0], action[1]])
+
         return self._get_observation(), reward, self.steps >= 1000 or distance > TRACK_WIDTH / 2, {}
 
     def reset(self, seed=None, options=None):
@@ -128,11 +140,18 @@ class RacecarDrivingEnv(gym.Env):
         :param options:  None
         :return: observation
         """
+        self._output_telemetry()
+        self.telemetry = []
+
         if self.car is not None:
             self.car.remove()
 
-        self.segment_index = random.randrange(self.bezier.num_segments)
-        t = random.random()
+        if self.random_start:
+            self.segment_index = random.randrange(self.bezier.num_segments)
+            t = random.random()
+        else:
+            self.segment_index = self.bezier.num_segments - 1
+            t = 0
 
         start_position = self.bezier.get_curve_point(self.segment_index, t)
         direction = self.bezier.get_direction(self.segment_index, t).tuple()
@@ -153,6 +172,7 @@ class RacecarDrivingEnv(gym.Env):
         """
         Close the environment
         """
+        self._output_telemetry()
         p.disconnect(physicsClientId=self.client)
 
     def _get_car_position(self):
@@ -172,3 +192,11 @@ class RacecarDrivingEnv(gym.Env):
             observation.append(local[0])
             observation.append(local[1])
         return np.array(observation, dtype=np.float32)
+
+    def _output_telemetry(self):
+        if len(self.telemetry) == 0:
+            return
+        if not os.path.exists("../telemetry"):
+            os.makedirs("../telemetry")
+        with open("../telemetry/output.pkl", 'wb') as file:
+            pickle.dump({"track": self.bezier, "track_width": TRACK_WIDTH, "telemetry":self.telemetry}, file)
