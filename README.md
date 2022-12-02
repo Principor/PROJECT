@@ -1,5 +1,16 @@
 # Final Year Project
 
-This repository has been created to store your final year project.
+The goal of this project is compare reinforcement learning methods in their ability to train an adaptive autonomous
+driving agent. In its current form, PPO is fully implemented to train a driving agent - although it is not yet
+adaptive.
 
-You may edit it as you like, but please do not remove the default topics or the project members list. These need to stay as currently defined in order for your supervisor to be able to find your project.
+To run this code requires a virtual environment. This can be set up using <code>conda env create -f environment.yml
+</code>
+
+<ul>
+<li>To train an agent, run "train.py"</li>
+<li>To test an agent with a visual debugger, run "test.py"</li>
+<li>To analyse telemetry from the car, run "analyse_telemetry.py"</li>
+</ul>
+
+Scores from training are saved to the summaries directory, and can viewed using tensorboard
