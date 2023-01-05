@@ -45,13 +45,18 @@ class RacecarDrivingEnv(gym.Env):
         self.random_start = random_start
         self.save_telemetry = save_telemetry
 
-        self.client = p.connect(p.GUI if self.gui else p.DIRECT)
-        p.setTimeStep(TIME_STEP, physicsClientId=self.client)
-        p.setGravity(0, 0, -10, physicsClientId=self.client)
-        p.resetDebugVisualizerCamera(cameraDistance=40,
+        self.client = p.connect(p.GUI if self.gui else p.DIRECT, options='--width=800 --height=800')
+        p.resetDebugVisualizerCamera(cameraDistance=30,
                                      cameraYaw=0,
                                      cameraPitch=-45,
-                                     cameraTargetPosition=(0, 0, 0))
+                                     cameraTargetPosition=(0, -50, 0))
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+        p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
+        p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
+        p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
+
+        p.setTimeStep(TIME_STEP, physicsClientId=self.client)
+        p.setGravity(0, 0, -10, physicsClientId=self.client)
 
         plane_collision_shape = p.createCollisionShape(p.GEOM_PLANE)
         plane_visual_shape = p.createVisualShape(p.GEOM_PLANE)
@@ -59,8 +64,7 @@ class RacecarDrivingEnv(gym.Env):
                                    baseCollisionShapeIndex=plane_collision_shape,
                                    baseVisualShapeIndex=plane_visual_shape,
                                    physicsClientId=self.client)
-        p.changeDynamics(ground, -1,
-                         restitution=0.9)
+        p.changeDynamics(ground, -1, restitution=0.9)
 
         self.car = None
 
@@ -150,7 +154,7 @@ class RacecarDrivingEnv(gym.Env):
             self.segment_index = random.randrange(self.bezier.num_segments)
             t = random.random()
         else:
-            self.segment_index = self.bezier.num_segments - 1
+            self.segment_index = 6
             t = 0
 
         start_position = self.bezier.get_curve_point(self.segment_index, t)
@@ -199,4 +203,4 @@ class RacecarDrivingEnv(gym.Env):
         if not os.path.exists("../telemetry"):
             os.makedirs("../telemetry")
         with open("../telemetry/output.pkl", 'wb') as file:
-            pickle.dump({"track": self.bezier, "track_width": TRACK_WIDTH, "telemetry":self.telemetry}, file)
+            pickle.dump({"track": self.bezier, "track_width": TRACK_WIDTH, "telemetry": self.telemetry}, file)

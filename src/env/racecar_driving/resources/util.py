@@ -251,16 +251,24 @@ class Vector3:
             return Vector3()
         return Vector3(*(other.values * dot12 / dot22))
 
+    def magnitude(self):
+        """
+        Find the magnitude of a vector
+
+        :return: The magnitude of the vector
+        """
+        return np.linalg.norm(self.values)
+
     def normalised(self):
         """
         Find normalised vector
 
         :return: Normalised vector if magnitude > 0, else (0, 0)
         """
-        norm = np.linalg.norm(self.values)
-        if norm == 0:
+        magnitude = self.magnitude()
+        if magnitude == 0:
             return np.zeros_like(self.values)
-        return self / norm
+        return self / magnitude
 
     def project_to_plane(self, normal):
         """

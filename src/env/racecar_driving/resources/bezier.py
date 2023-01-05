@@ -1,3 +1,5 @@
+import math
+
 import pybullet as p
 
 from racecar_driving.resources.util import Vector2
@@ -228,7 +230,7 @@ class Bezier:
                 p.addUserDebugLine(previous_point.tuple(),
                                    current_point.tuple(),
                                    lineColorRGB=(1, 0, 0),
-                                   lineWidth=1,
+                                   lineWidth=2,
                                    physicsClientId=client)
                 previous_point = current_point
 
