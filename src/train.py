@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
-from model import Model
+from model import Model, state_to_tensor
 import racecar_driving
 
 # Parameters
@@ -96,7 +96,7 @@ class Agent:
 
         # Generate action
         with torch.no_grad():
-            state = torch.tensor(state)
+            state = state_to_tensor(state)
             dist, value = self.model(state)
             action = dist.sample()
             prob = dist.log_prob(action)
@@ -106,8 +106,7 @@ class Agent:
         self.action_memory.append(action.numpy())
         self.prob_memory.append(prob.numpy())
         self.value_memory.append(value.numpy().squeeze())
-
-        return action.detach().numpy()
+        return action.detach().numpy().squeeze(0)
 
     def remember(self, reward, terminated):
         """
@@ -156,7 +155,8 @@ class Agent:
             np.stack(self.action_memory),
             np.stack(self.prob_memory)
         )
-        sequences = (np.concatenate(sequence, axis=0) for sequence in sequences)
+        sequences = (np.concatenate(np.squeeze(sequence), axis=0) for sequence in sequences)
+
         all_returns, all_advantages, all_states, all_actions, all_probs = sequences
 
         # Decay learning rate

@@ -31,3 +31,6 @@ Agent can successfully drive to waypoints
 
 2022/11/29
 Basic "constant" racing environment is complete
+
+2023/01/15
+Started making Recurrent Neural Network
