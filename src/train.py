@@ -14,7 +14,9 @@ import racecar_driving
 NUM_UPDATES = 150
 NUM_ENVS = 4
 NUM_STEPS = 1024
+BUFFER_SIZE = NUM_ENVS * NUM_STEPS
 BATCH_SIZE = 128
+SEQUENCE_LENGTH = 8
 
 NUM_EPOCHS = 10
 EPSILON = 0.2
@@ -57,8 +59,8 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, hidden_size, num_updates, batch_size, num_epochs, epsilon, gamma,
-                 gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
+    def __init__(self, state_size, action_size, hidden_size, num_updates, batch_size, sequence_length, num_epochs,
+                 epsilon, gamma, gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
         self.model = Model(state_size, action_size, hidden_size)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
@@ -66,6 +68,7 @@ class Agent:
         # Store parameters
         self.num_updates = num_updates
         self.batch_size = batch_size
+        self.sequence_length = sequence_length
         self.num_epochs = num_epochs
         self.eps = epsilon
         self.gamma = gamma
@@ -102,10 +105,10 @@ class Agent:
             prob = dist.log_prob(action)
 
         # Store information
-        self.state_memory.append(state)
-        self.action_memory.append(action.numpy())
-        self.prob_memory.append(prob.numpy())
-        self.value_memory.append(value.numpy().squeeze())
+        self.state_memory.append(state.squeeze(0))
+        self.action_memory.append(action.numpy().squeeze(0))
+        self.prob_memory.append(prob.numpy().squeeze(0))
+        self.value_memory.append(value.numpy().squeeze(0))
         return action.detach().numpy().squeeze(0)
 
     def remember(self, reward, terminated):
@@ -115,8 +118,8 @@ class Agent:
         :param reward: Reward at the current step
         :param terminated: Whether the current step reach a terminal state
         """
-        self.reward_memory.append(reward)
-        self.terminated_memory.append(terminated)
+        self.reward_memory.append(np.expand_dims(reward, -1))
+        self.terminated_memory.append(np.expand_dims(terminated, -1))
 
     def calculate_returns(self, final_value):
         """
@@ -127,7 +130,7 @@ class Agent:
         :return: The list of returns from each step
         """
         length = len(self.reward_memory)
-        next_values = self.value_memory[1:] + [final_value.detach().numpy().squeeze()]
+        next_values = self.value_memory[1:] + [final_value]
         returns = []
         gae = 0
         for step in reversed(range(length)):
@@ -135,7 +138,14 @@ class Agent:
             delta = self.reward_memory[step] + self.gamma * next_values[step] * mask - self.value_memory[step]
             gae = delta + self.gae_lambda * self.gamma * gae * mask
             returns.insert(0, gae + self.value_memory[step])
-        return np.stack(returns)
+        returns = np.stack(returns, axis=1)
+        return returns
+
+    def generate_arrays(self, arrays, shape):
+        new_arrays = []
+        for arr in arrays:
+            new_arrays.append(arr.reshape(shape + arr.shape[2:]))
+        return tuple(new_arrays)
 
     def learn(self, next_state):
         """
@@ -145,19 +155,20 @@ class Agent:
         cut-off point
         """
 
-        returns = self.calculate_returns(self.model(torch.tensor(next_state))[1])
+        final_value = self.model(state_to_tensor(next_state))[1].detach().numpy().squeeze(0)
+        returns = self.calculate_returns(final_value)
+
+        buffer_size = returns.shape[0] * returns.shape[1]
+        shape = (self.sequence_length, buffer_size // self.sequence_length)
 
         # Stack and reshape all sequences
-        sequences = (
+        all_returns, all_advantages, all_states, all_actions, all_probs = self.generate_arrays((
             returns,
-            normalise(returns - np.stack(self.value_memory)),
-            np.stack(self.state_memory),
-            np.stack(self.action_memory),
-            np.stack(self.prob_memory)
-        )
-        sequences = (np.concatenate(np.squeeze(sequence), axis=0) for sequence in sequences)
-
-        all_returns, all_advantages, all_states, all_actions, all_probs = sequences
+            normalise(returns - np.stack(self.value_memory, axis=1)),
+            np.stack(self.state_memory, axis=1),
+            np.stack(self.action_memory, axis=1),
+            np.stack(self.prob_memory, axis=1)
+        ), shape)
 
         # Decay learning rate
         if self.decay_lr:
@@ -167,29 +178,26 @@ class Agent:
         for _ in range(self.num_epochs):
 
             # Generate indices for each batch
-            size = all_returns.shape[0]
+            size = all_returns.shape[1]
             indices = np.arange(size)
             np.random.shuffle(indices)
 
-            indices = np.split(indices, all_returns.shape[0] // self.batch_size)
+            indices = np.split(indices, buffer_size // self.batch_size)
 
             # Create each batch
             batches = [(
-                torch.tensor(all_returns[batch_indices], dtype=torch.float32),
-                torch.tensor(all_advantages[batch_indices], dtype=torch.float32),
-                torch.tensor(all_states[batch_indices]),
-                torch.tensor(all_actions[batch_indices]),
-                torch.tensor(all_probs[batch_indices])
+                torch.tensor(all_returns[:, batch_indices], dtype=torch.float32),
+                torch.tensor(all_advantages[:, batch_indices], dtype=torch.float32),
+                torch.tensor(all_states[:, batch_indices]),
+                torch.tensor(all_actions[:, batch_indices]),
+                torch.tensor(all_probs[:, batch_indices])
             ) for batch_indices in indices]
 
             for batch in batches:
                 returns, advantages, states, actions, old_probs = batch
 
-                advantages = torch.unsqueeze(advantages, dim=-1)
-
                 # Get current distribution and value from models
                 dist, new_values = self.model(states)
-                new_values = torch.squeeze(new_values)
 
                 # Calculate components of actor loss
                 new_probs = dist.log_prob(actions)
@@ -241,7 +249,8 @@ def train():
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 
     agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_UPDATES, BATCH_SIZE,
-                  NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
+                  SEQUENCE_LENGTH, NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR,
+                  MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []
