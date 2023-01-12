@@ -27,8 +27,6 @@ LEARNING_RATE = 0.0003
 DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
-HIDDEN_SIZE = 128
-
 LOG_FREQUENCY = 5
 RUN_NAME = "ppo"
 
@@ -52,18 +50,18 @@ class Agent:
 
     :param state_size: The length of the state vector
     :param action_size: The length of the action vector
-    :param hidden_size: Number of nodes in the hidden layer
 
     :param num_epochs: The number of updates to complete at each step
     :param epsilon: Clipping parameter
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, hidden_size, num_updates, batch_size, sequence_length, num_epochs,
-                 epsilon, gamma, gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
+    def __init__(self, state_size, action_size, num_updates, num_envs, batch_size, sequence_length, num_epochs, epsilon,
+                 gamma, gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
-        self.model = Model(state_size, action_size, hidden_size)
+        self.model = Model(state_size, action_size)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+        self.model.initialise_lstm_states(num_envs)
 
         # Store parameters
         self.num_updates = num_updates
@@ -87,6 +85,11 @@ class Agent:
         self.value_memory = []
         self.reward_memory = []
         self.terminated_memory = []
+        
+        self.actor_hidden_memory = []
+        self.actor_cell_memory = []
+        self.critic_hidden_memory = []
+        self.critic_cell_memory = []
 
     def choose_action(self, state):
         """
@@ -96,6 +99,11 @@ class Agent:
         :param state: The current state
         :return: Chosen action vector
         """
+        actor_state, critic_state = self.model.actor_state, self.model.critic_state
+        self.actor_hidden_memory.append(actor_state[0].numpy())
+        self.actor_cell_memory.append(actor_state[1].numpy())
+        self.critic_hidden_memory.append(critic_state[0].numpy())
+        self.critic_cell_memory.append(critic_state[1].numpy())
 
         # Generate action
         with torch.no_grad():
@@ -105,7 +113,7 @@ class Agent:
             prob = dist.log_prob(action)
 
         # Store information
-        self.state_memory.append(state.squeeze(0))
+        self.state_memory.append(state.numpy().squeeze(0))
         self.action_memory.append(action.numpy().squeeze(0))
         self.prob_memory.append(prob.numpy().squeeze(0))
         self.value_memory.append(value.numpy().squeeze(0))
@@ -147,6 +155,14 @@ class Agent:
             new_arrays.append(arr.reshape(shape + arr.shape[2:]))
         return tuple(new_arrays)
 
+    def generate_lstm_state_arrays(self, arrays, shape):
+        new_arrays = []
+        for arr in arrays:
+            arr = arr.reshape((arr.shape[0],) + shape + (arr.shape[-1],))
+            arr = arr[:, 0]
+            new_arrays.append(arr)
+        return tuple(new_arrays)
+
     def learn(self, next_state):
         """
         Update models based on the sampled experience
@@ -155,6 +171,7 @@ class Agent:
         cut-off point
         """
 
+        old_actor_state, old_critic_state = self.model.actor_state, self.model.critic_state
         final_value = self.model(state_to_tensor(next_state))[1].detach().numpy().squeeze(0)
         returns = self.calculate_returns(final_value)
 
@@ -168,6 +185,13 @@ class Agent:
             np.stack(self.state_memory, axis=1),
             np.stack(self.action_memory, axis=1),
             np.stack(self.prob_memory, axis=1)
+        ), shape)
+
+        all_actor_hidden, all_actor_cell, all_critic_hidden, all_critic_cell = self.generate_lstm_state_arrays((
+            np.stack(self.actor_hidden_memory, axis=2),
+            np.stack(self.actor_cell_memory, axis=2),
+            np.stack(self.critic_hidden_memory, axis=2),
+            np.stack(self.critic_cell_memory, axis=2),
         ), shape)
 
         # Decay learning rate
@@ -190,13 +214,22 @@ class Agent:
                 torch.tensor(all_advantages[:, batch_indices], dtype=torch.float32),
                 torch.tensor(all_states[:, batch_indices]),
                 torch.tensor(all_actions[:, batch_indices]),
-                torch.tensor(all_probs[:, batch_indices])
+                torch.tensor(all_probs[:, batch_indices]),
+                (
+                    torch.tensor(all_actor_hidden[:, batch_indices]),
+                    torch.tensor(all_actor_cell[:, batch_indices])
+                ),
+                (
+                    torch.tensor(all_critic_hidden[:, batch_indices]),
+                    torch.tensor(all_critic_cell[:, batch_indices])
+                )
             ) for batch_indices in indices]
 
             for batch in batches:
-                returns, advantages, states, actions, old_probs = batch
+                returns, advantages, states, actions, old_probs, actor_state, critic_state = batch
 
                 # Get current distribution and value from models
+                self.model.actor_state, self.model.critic_state = actor_state, critic_state
                 dist, new_values = self.model(states)
 
                 # Calculate components of actor loss
@@ -225,6 +258,13 @@ class Agent:
         self.reward_memory.clear()
         self.terminated_memory.clear()
 
+        self.actor_hidden_memory.clear()
+        self.actor_cell_memory.clear()
+        self.critic_hidden_memory.clear()
+        self.critic_cell_memory.clear()
+
+        self.model.actor_state, self.model.critic_state = old_actor_state, old_critic_state
+
     def save_model(self):
         """
         Save the model
@@ -248,7 +288,7 @@ def train():
 
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 
-    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_UPDATES, BATCH_SIZE,
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], NUM_UPDATES, NUM_ENVS, BATCH_SIZE,
                   SEQUENCE_LENGTH, NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR,
                   MAX_GRAD_NORM)
 
