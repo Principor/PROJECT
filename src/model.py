@@ -15,7 +15,6 @@ class Model(nn.Module):
 
     :param state_size: The length of the state vector
     :param action_size: The length of the action vector
-    :param hidden_size: Number of nodes in the hidden layer
     """
 
     def __init__(self, state_size, action_size):
@@ -47,6 +46,15 @@ class Model(nn.Module):
     def initialise_lstm_states(self, batch_size):
         self.actor_state = (torch.zeros((1, batch_size, HIDDEN_SIZE)), torch.zeros((1, batch_size, HIDDEN_SIZE)))
         self.critic_state = (torch.zeros((1, batch_size, HIDDEN_SIZE)), torch.zeros((1, batch_size, HIDDEN_SIZE)))
+
+    def apply_mask(self, mask):
+        mask = torch.tensor(mask, dtype=torch.float32)
+
+        actor_hidden, actor_cell = self.actor_state
+        critic_hidden, critic_cell = self.critic_state
+
+        self.actor_state = (actor_hidden * mask, actor_cell * mask)
+        self.critic_state = (critic_hidden * mask, critic_cell * mask)
 
     def forward(self, state):
         """
