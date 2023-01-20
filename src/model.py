@@ -2,10 +2,6 @@ import torch
 from torch import nn
 
 
-def state_to_tensor(state):
-    return torch.unsqueeze(torch.tensor(state), 0)
-
-
 class Model(nn.Module):
     """
     Model class, contains actor network and critic network for generating actions and evaluating values respectively

@@ -2,7 +2,7 @@ import gym
 import torch
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from model import Model, state_to_tensor
+from model import Model
 import racecar_driving
 
 # Parameters
@@ -21,7 +21,7 @@ if __name__ == '__main__':
 
     observation = env.reset()
     for _ in range(NUM_STEPS):
-        action = actor(state_to_tensor(observation))[0].sample().detach().numpy().squeeze(0)
+        action = actor(torch.tensor(observation, dtype=torch.float32))[0].sample().detach().numpy()
         observation, reward, done, info = env.step(action)
         env.render(mode='human')
         if done:
