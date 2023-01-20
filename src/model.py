@@ -17,10 +17,8 @@ class Model(nn.Module):
 
     def __init__(self, state_size, action_size, hidden_size):
         super(Model, self).__init__()
-
-        self.actor_lstm = nn.LSTM(state_size, hidden_size, 1)
         self.actor_base = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(state_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
@@ -30,9 +28,8 @@ class Model(nn.Module):
             nn.Linear(hidden_size, action_size)
         )
 
-        self.critic_lstm = nn.LSTM(state_size, hidden_size, 1)
         self.critic = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(state_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
@@ -46,13 +43,9 @@ class Model(nn.Module):
         :param state: The current state
         :return: Distribution of possible actions, value of current state
         """
-        actor_lstm, _ = self.actor_lstm(state)
-        base = self.actor_base(actor_lstm)
+        base = self.actor_base(state)
         mean = self.mean(base)
         std = self.log_std(base).exp()
-
-        critic_lstm, _ = self.critic_lstm(state)
-        value = self.critic(critic_lstm)
-
+        value = self.critic(state)
         return torch.distributions.Normal(mean, std), value
 
