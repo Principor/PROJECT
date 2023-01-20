@@ -31,3 +31,10 @@ Agent can successfully drive to waypoints
 
 2022/11/29
 Basic "constant" racing environment is complete
+
+2023/01/05
+Started making Recurrent Neural Network
+
+2023/01/20
+Failed to make working LSTM - reverting current work
+No attempting to follow https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/#Andrychowicz

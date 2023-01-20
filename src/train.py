@@ -11,10 +11,10 @@ from model import Model
 import racecar_driving
 
 # Parameters
-NUM_UPDATES = 150
+NUM_UPDATES = 100
 NUM_ENVS = 4
-NUM_STEPS = 1024
-BATCH_SIZE = 128
+NUM_STEPS = 512
+BATCH_SIZE = 64
 
 NUM_EPOCHS = 10
 EPSILON = 0.2
@@ -27,7 +27,7 @@ MAX_GRAD_NORM = 0.5
 
 HIDDEN_SIZE = 128
 
-LOG_FREQUENCY = 5
+LOG_FREQUENCY = 10
 RUN_NAME = "ppo"
 
 
@@ -169,9 +169,8 @@ class Agent:
             # Generate indices for each batch
             size = all_returns.shape[0]
             indices = np.arange(size)
-            np.random.shuffle(indices)
-
             indices = np.split(indices, all_returns.shape[0] // self.batch_size)
+            np.random.shuffle(indices)
 
             # Create each batch
             batches = [(
@@ -233,7 +232,7 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0') for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: gym.make('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()
