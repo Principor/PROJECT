@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
-from model import Model
+from model import Model, state_to_tensor
 import racecar_driving
 
 # Parameters
@@ -96,18 +96,18 @@ class Agent:
 
         # Generate action
         with torch.no_grad():
-            state = torch.tensor(state)
+            state = state_to_tensor(state)
             dist, value = self.model(state)
             action = dist.sample()
             prob = dist.log_prob(action)
 
         # Store information
-        self.state_memory.append(state)
-        self.action_memory.append(action.numpy())
-        self.prob_memory.append(prob.numpy())
-        self.value_memory.append(value.numpy().squeeze())
+        self.state_memory.append(state.squeeze(0))
+        self.action_memory.append(action.numpy().squeeze(0))
+        self.prob_memory.append(prob.numpy().squeeze(0))
+        self.value_memory.append(value.numpy().squeeze(0))
 
-        return action.detach().numpy()
+        return action.detach().numpy().squeeze(0)
 
     def remember(self, reward, terminated):
         """
@@ -116,8 +116,8 @@ class Agent:
         :param reward: Reward at the current step
         :param terminated: Whether the current step reach a terminal state
         """
-        self.reward_memory.append(reward)
-        self.terminated_memory.append(terminated)
+        self.reward_memory.append(np.expand_dims(reward, -1))
+        self.terminated_memory.append(np.expand_dims(terminated, -1))
 
     def calculate_returns(self, final_value):
         """
@@ -128,7 +128,7 @@ class Agent:
         :return: The list of returns from each step
         """
         length = len(self.reward_memory)
-        next_values = self.value_memory[1:] + [final_value.detach().numpy().squeeze()]
+        next_values = self.value_memory[1:] + [final_value.detach().numpy()]
         returns = []
         gae = 0
         for step in reversed(range(length)):
@@ -136,7 +136,7 @@ class Agent:
             delta = self.reward_memory[step] + self.gamma * next_values[step] * mask - self.value_memory[step]
             gae = delta + self.gae_lambda * self.gamma * gae * mask
             returns.insert(0, gae + self.value_memory[step])
-        return np.stack(returns)
+        return np.stack(returns).astype(np.float32)
 
     def learn(self, next_state):
         """
@@ -145,8 +145,8 @@ class Agent:
         :param next_state: The next state when training was stopped. Used to predict returns that would follow after
         cut-off point
         """
-
-        returns = self.calculate_returns(self.model(torch.tensor(next_state))[1])
+        final_value = self.model(state_to_tensor(next_state))[1].squeeze(0)
+        returns = self.calculate_returns(final_value)
 
         # Stack and reshape all sequences
         sequences = (
@@ -156,7 +156,7 @@ class Agent:
             np.stack(self.action_memory),
             np.stack(self.prob_memory)
         )
-        sequences = (np.concatenate(sequence, axis=0) for sequence in sequences)
+        sequences = (np.expand_dims(np.concatenate(sequence, axis=0), 1) for sequence in sequences)
         all_returns, all_advantages, all_states, all_actions, all_probs = sequences
 
         # Decay learning rate
@@ -174,8 +174,8 @@ class Agent:
 
             # Create each batch
             batches = [(
-                torch.tensor(all_returns[batch_indices], dtype=torch.float32),
-                torch.tensor(all_advantages[batch_indices], dtype=torch.float32),
+                torch.tensor(all_returns[batch_indices]),
+                torch.tensor(all_advantages[batch_indices]),
                 torch.tensor(all_states[batch_indices]),
                 torch.tensor(all_actions[batch_indices]),
                 torch.tensor(all_probs[batch_indices])
@@ -184,11 +184,9 @@ class Agent:
             for batch in batches:
                 returns, advantages, states, actions, old_probs = batch
 
-                advantages = torch.unsqueeze(advantages, dim=-1)
-
                 # Get current distribution and value from models
                 dist, new_values = self.model(states)
-                new_values = torch.squeeze(new_values)
+                new_values = new_values
 
                 # Calculate components of actor loss
                 new_probs = dist.log_prob(actions)

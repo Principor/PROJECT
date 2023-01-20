@@ -2,6 +2,10 @@ import torch
 from torch import nn
 
 
+def state_to_tensor(state):
+    return torch.tensor(state).unsqueeze(0)
+
+
 class Model(nn.Module):
     """
     Model class, contains actor network and critic network for generating actions and evaluating values respectively
@@ -44,4 +48,3 @@ class Model(nn.Module):
         std = self.log_std(base).exp()
         value = self.critic(state)
         return torch.distributions.Normal(mean, std), value
-
