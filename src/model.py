@@ -2,9 +2,6 @@ import torch
 from torch import nn
 
 
-HIDDEN_SIZE = 128
-
-
 def state_to_tensor(state):
     return torch.unsqueeze(torch.tensor(state), 0)
 
@@ -18,35 +15,29 @@ class Model(nn.Module):
     :param hidden_size: Number of nodes in the hidden layer
     """
 
-    def __init__(self, state_size, action_size):
+    def __init__(self, state_size, action_size, hidden_size):
         super(Model, self).__init__()
 
-        self.actor_lstm = nn.LSTM(state_size, HIDDEN_SIZE, 1)
+        self.actor_lstm = nn.LSTM(state_size, hidden_size, 1)
         self.actor_base = nn.Sequential(
-            nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
         )
-        self.mean = nn.Linear(HIDDEN_SIZE, action_size)
+        self.mean = nn.Linear(hidden_size, action_size)
         self.log_std = nn.Sequential(
-            nn.Linear(HIDDEN_SIZE, action_size)
+            nn.Linear(hidden_size, action_size)
         )
 
-        self.critic_lstm = nn.LSTM(state_size, HIDDEN_SIZE, 1)
+        self.critic_lstm = nn.LSTM(state_size, hidden_size, 1)
         self.critic = nn.Sequential(
-            nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(HIDDEN_SIZE, 1),
+            nn.Linear(hidden_size, 1),
         )
-
-        self.actor_state, self.critic_state = None, None
-
-    def initialise_lstm_states(self, batch_size):
-        self.actor_state = (torch.zeros((1, batch_size, HIDDEN_SIZE)), torch.zeros((1, batch_size, HIDDEN_SIZE)))
-        self.critic_state = (torch.zeros((1, batch_size, HIDDEN_SIZE)), torch.zeros((1, batch_size, HIDDEN_SIZE)))
 
     def forward(self, state):
         """
@@ -55,12 +46,12 @@ class Model(nn.Module):
         :param state: The current state
         :return: Distribution of possible actions, value of current state
         """
-        actor_lstm, self.actor_state = self.actor_lstm(state, self.actor_state)
+        actor_lstm, _ = self.actor_lstm(state)
         base = self.actor_base(actor_lstm)
         mean = self.mean(base)
         std = self.log_std(base).exp()
 
-        critic_lstm, self.critic_state = self.critic_lstm(state, self.critic_state)
+        critic_lstm, _ = self.critic_lstm(state)
         value = self.critic(critic_lstm)
 
         return torch.distributions.Normal(mean, std), value
