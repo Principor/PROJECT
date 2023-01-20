@@ -85,7 +85,7 @@ class Agent:
         self.value_memory = []
         self.reward_memory = []
         self.terminated_memory = []
-
+        
         self.actor_hidden_memory = []
         self.actor_cell_memory = []
         self.critic_hidden_memory = []
@@ -119,7 +119,7 @@ class Agent:
         self.value_memory.append(value.numpy().squeeze(0))
         return action.detach().numpy().squeeze(0)
 
-    def finish_step(self, reward, terminated):
+    def remember(self, reward, terminated):
         """
         Remember the reward and whether a terminal state was reached
 
@@ -128,7 +128,6 @@ class Agent:
         """
         self.reward_memory.append(np.expand_dims(reward, -1))
         self.terminated_memory.append(np.expand_dims(terminated, -1))
-        self.model.apply_mask(1 - self.terminated_memory[-1])
 
     def calculate_returns(self, final_value):
         """
@@ -151,12 +150,9 @@ class Agent:
         return returns
 
     def generate_arrays(self, arrays, shape):
-        masks = 1 - np.stack(self.terminated_memory, axis=1).reshape(shape + (1,)).astype(np.float32)
-        masks[-1, :, :] = 1
-        masks = np.cumprod(np.roll(masks, 1, 0), 0)
-        new_arrays = [masks]
+        new_arrays = []
         for arr in arrays:
-            new_arrays.append(masks * arr.reshape(shape + arr.shape[2:]))
+            new_arrays.append(arr.reshape(shape + arr.shape[2:]))
         return tuple(new_arrays)
 
     def generate_lstm_state_arrays(self, arrays, shape):
@@ -183,7 +179,7 @@ class Agent:
         shape = (self.sequence_length, buffer_size // self.sequence_length)
 
         # Stack and reshape all sequences
-        all_masks, all_returns, all_advantages, all_states, all_actions, all_probs = self.generate_arrays((
+        all_returns, all_advantages, all_states, all_actions, all_probs = self.generate_arrays((
             returns,
             normalise(returns - np.stack(self.value_memory, axis=1)),
             np.stack(self.state_memory, axis=1),
@@ -214,7 +210,6 @@ class Agent:
 
             # Create each batch
             batches = [(
-                torch.tensor(all_masks[:, batch_indices], dtype=torch.float32),
                 torch.tensor(all_returns[:, batch_indices], dtype=torch.float32),
                 torch.tensor(all_advantages[:, batch_indices], dtype=torch.float32),
                 torch.tensor(all_states[:, batch_indices]),
@@ -231,7 +226,7 @@ class Agent:
             ) for batch_indices in indices]
 
             for batch in batches:
-                masks, returns, advantages, states, actions, old_probs, actor_state, critic_state = batch
+                returns, advantages, states, actions, old_probs, actor_state, critic_state = batch
 
                 # Get current distribution and value from models
                 self.model.actor_state, self.model.critic_state = actor_state, critic_state
@@ -245,9 +240,9 @@ class Agent:
                 clipped = torch.clip(ratios, 1-self.eps, 1+self.eps) * advantages
 
                 # Calculate actual loss
-                actor_loss = masks * -torch.min(unclipped, clipped)
-                critic_loss = masks * torch.square(returns - new_values)
-                loss = actor_loss.mean() + self.critic_discount * critic_loss.mean()
+                actor_loss = -torch.min(unclipped, clipped).mean()
+                critic_loss = torch.nn.functional.mse_loss(returns, new_values).mean()
+                loss = actor_loss + self.critic_discount * critic_loss
 
                 # Back propagation
                 self.optimizer.zero_grad()
@@ -305,7 +300,7 @@ def train():
         for update_step in range(NUM_STEPS):
             action = agent.choose_action(observation)
             observation, reward, done, info = envs.step(action)
-            agent.finish_step(reward, done)
+            agent.remember(reward, done)
 
             # Record the return of each finished episode
             for i in range(NUM_ENVS):
