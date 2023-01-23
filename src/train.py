@@ -25,8 +25,6 @@ LEARNING_RATE = 0.0003
 DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
-HIDDEN_SIZE = 128
-
 LOG_FREQUENCY = 10
 RUN_NAME = "ppo"
 
@@ -57,10 +55,10 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, hidden_size, num_updates, batch_size, num_epochs, epsilon, gamma,
-                 gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
+    def __init__(self, state_size, action_size, num_updates, batch_size, num_epochs, epsilon, gamma, gae_lambda,
+                 critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
-        self.model = Model(state_size, action_size, hidden_size)
+        self.model = Model(state_size, action_size)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
 
         # Store parameters
@@ -237,8 +235,8 @@ def train():
 
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 
-    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], HIDDEN_SIZE, NUM_UPDATES, BATCH_SIZE,
-                  NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], NUM_UPDATES, BATCH_SIZE, NUM_EPOCHS,
+                  EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []
