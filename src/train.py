@@ -25,7 +25,7 @@ LEARNING_RATE = 0.0003
 DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
-LOG_FREQUENCY = 10
+LOG_FREQUENCY = 5
 RUN_NAME = "ppo"
 
 
@@ -55,10 +55,11 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, num_updates, batch_size, num_epochs, epsilon, gamma, gae_lambda,
-                 critic_discount, lr, decay_lr, max_grad_norm):
+    def __init__(self, state_size, action_size, num_updates, num_envs, batch_size, num_epochs, epsilon, gamma,
+                 gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
         self.model = Model(state_size, action_size)
+        self.model.initialise_hidden_states(num_envs)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
 
         # Store parameters
@@ -83,6 +84,11 @@ class Agent:
         self.reward_memory = []
         self.terminated_memory = []
 
+        self.actor_hidden_memory = []
+        self.actor_cell_memory = []
+        self.critic_hidden_memory = []
+        self.critic_cell_memory = []
+
     def choose_action(self, state):
         """
         Choose an action for the current state, and remember the state, action, log probability of the action and
@@ -91,6 +97,10 @@ class Agent:
         :param state: The current state
         :return: Chosen action vector
         """
+        self.actor_hidden_memory.append(self.model.actor_lstm_state[0])
+        self.actor_cell_memory.append(self.model.actor_lstm_state[1]) 
+        self.critic_hidden_memory.append(self.model.critic_lstm_state[0])
+        self.critic_cell_memory.append(self.model.critic_lstm_state[1])
 
         # Generate action
         with torch.no_grad():
@@ -134,7 +144,7 @@ class Agent:
             delta = self.reward_memory[step] + self.gamma * next_values[step] * mask - self.value_memory[step]
             gae = delta + self.gae_lambda * self.gamma * gae * mask
             returns.insert(0, gae + self.value_memory[step])
-        return np.stack(returns).astype(np.float32)
+        return np.stack(returns, axis=1).astype(np.float32)
 
     def learn(self, next_state):
         """
@@ -143,19 +153,30 @@ class Agent:
         :param next_state: The next state when training was stopped. Used to predict returns that would follow after
         cut-off point
         """
+        old_actor_state, old_critic_state = self.model.actor_lstm_state, self.model.critic_lstm_state
         final_value = self.model(state_to_tensor(next_state))[1].squeeze(0)
         returns = self.calculate_returns(final_value)
 
         # Stack and reshape all sequences
         sequences = (
             returns,
-            normalise(returns - np.stack(self.value_memory)),
-            np.stack(self.state_memory),
-            np.stack(self.action_memory),
-            np.stack(self.prob_memory)
+            normalise(returns - np.stack(self.value_memory, axis=1)),
+            np.stack(self.state_memory, axis=1),
+            np.stack(self.action_memory, axis=1),
+            np.stack(self.prob_memory, axis=1)
         )
         sequences = (np.expand_dims(np.concatenate(sequence, axis=0), 1) for sequence in sequences)
         all_returns, all_advantages, all_states, all_actions, all_probs = sequences
+
+        lstm_states = (
+            np.stack(self.actor_hidden_memory, axis=2),
+            np.stack(self.actor_cell_memory, axis=2),
+            np.stack(self.critic_hidden_memory, axis=2),
+            np.stack(self.critic_cell_memory, axis=2)
+        )
+        lstm_state_shape = (1, -1, self.model.hidden_size)
+        lstm_states = (lstm_state.reshape(lstm_state_shape) for lstm_state in lstm_states)
+        actor_hidden_states, actor_cell_states, critic_hidden_states, critic_cell_states = lstm_states
 
         # Decay learning rate
         if self.decay_lr:
@@ -176,13 +197,22 @@ class Agent:
                 torch.tensor(all_advantages[batch_indices]),
                 torch.tensor(all_states[batch_indices]),
                 torch.tensor(all_actions[batch_indices]),
-                torch.tensor(all_probs[batch_indices])
+                torch.tensor(all_probs[batch_indices]),
+                (
+                    torch.tensor(actor_hidden_states[:, batch_indices][:, :1]),
+                    torch.tensor(actor_cell_states[:, batch_indices][:, :1]),
+                ),
+                (
+                    torch.tensor(critic_hidden_states[:, batch_indices][:, :1]),
+                    torch.tensor(critic_cell_states[:, batch_indices][:, :1]),
+                ),
             ) for batch_indices in indices]
 
             for batch in batches:
-                returns, advantages, states, actions, old_probs = batch
+                returns, advantages, states, actions, old_probs, actor_states, critic_states = batch
 
                 # Get current distribution and value from models
+                self.model.actor_lstm_state, self.model.critic_lstm_state = actor_states, critic_states
                 dist, new_values = self.model(states)
                 new_values = new_values
 
@@ -212,6 +242,8 @@ class Agent:
         self.reward_memory.clear()
         self.terminated_memory.clear()
 
+        self.model.actor_lstm_state, self.model.critic_lstm_state = old_actor_state, old_critic_state
+
     def save_model(self):
         """
         Save the model
@@ -235,8 +267,8 @@ def train():
 
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 
-    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], NUM_UPDATES, BATCH_SIZE, NUM_EPOCHS,
-                  EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], NUM_UPDATES, NUM_ENVS, BATCH_SIZE,
+                  NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []

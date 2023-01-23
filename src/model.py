@@ -40,6 +40,14 @@ class Model(nn.Module):
         self.log_std = nn.Linear(self.hidden_size, action_size)
         self.value = nn.Linear(self.hidden_size, 1)
 
+        self.actor_lstm_state = self.critic_lstm_state = None
+
+    def initialise_hidden_states(self, batch_size):
+        self.actor_lstm_state = (torch.zeros(1, batch_size, self.hidden_size),
+                                 torch.zeros(1, batch_size, self.hidden_size))
+        self.critic_lstm_state = (torch.zeros(1, batch_size, self.hidden_size),
+                                  torch.zeros(1, batch_size, self.hidden_size))
+
     def forward(self, state):
         """
         Generate action distribution and evaluate value for given state
@@ -57,8 +65,8 @@ class Model(nn.Module):
         for i in range(sequence_length):
             actor_lstm_in = actor_forward[i].unsqueeze(0)
             critic_lstm_in = critic_forward[i].unsqueeze(0)
-            actor_lstm_out, _ = self.actor_lstm(actor_lstm_in)
-            critic_lstm_out, _ = self.critic_lstm(critic_lstm_in)
+            actor_lstm_out, self.actor_lstm_state = self.actor_lstm(actor_lstm_in, self.actor_lstm_state)
+            critic_lstm_out, self.actor_lstm_state = self.critic_lstm(critic_lstm_in, self.critic_lstm_state)
             actor_lstm[i] = actor_lstm_out.squeeze(0)
             critic_lstm[i] = critic_lstm_out.squeeze(0)
 
