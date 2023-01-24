@@ -25,7 +25,7 @@ LEARNING_RATE = 0.0003
 DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
-LOG_FREQUENCY = 5
+LOG_FREQUENCY = 10
 RUN_NAME = "ppo"
 
 
@@ -117,7 +117,7 @@ class Agent:
 
         return action.detach().numpy().squeeze(0)
 
-    def remember(self, reward, terminated):
+    def finish_step(self, reward, terminated):
         """
         Remember the reward and whether a terminal state was reached
 
@@ -125,7 +125,9 @@ class Agent:
         :param terminated: Whether the current step reach a terminal state
         """
         self.reward_memory.append(np.expand_dims(reward, -1))
-        self.terminated_memory.append(np.expand_dims(terminated, -1))
+        self.terminated_memory.append(np.expand_dims(terminated, -1).astype(np.float32))
+
+        self.model.apply_mask(torch.tensor(1 - self.terminated_memory[-1]))
 
     def calculate_returns(self, final_value):
         """
@@ -163,10 +165,11 @@ class Agent:
             normalise(returns - np.stack(self.value_memory, axis=1)),
             np.stack(self.state_memory, axis=1),
             np.stack(self.action_memory, axis=1),
-            np.stack(self.prob_memory, axis=1)
+            np.stack(self.prob_memory, axis=1),
+            np.stack(self.terminated_memory, axis=1)
         )
         sequences = (np.expand_dims(np.concatenate(sequence, axis=0), 1) for sequence in sequences)
-        all_returns, all_advantages, all_states, all_actions, all_probs = sequences
+        all_returns, all_advantages, all_states, all_actions, all_probs, all_dones = sequences
 
         lstm_states = (
             np.stack(self.actor_hidden_memory, axis=2),
@@ -198,6 +201,7 @@ class Agent:
                 torch.tensor(all_states[batch_indices]),
                 torch.tensor(all_actions[batch_indices]),
                 torch.tensor(all_probs[batch_indices]),
+                torch.tensor(all_dones[batch_indices]),
                 (
                     torch.tensor(actor_hidden_states[:, batch_indices][:, :1]),
                     torch.tensor(actor_cell_states[:, batch_indices][:, :1]),
@@ -209,11 +213,11 @@ class Agent:
             ) for batch_indices in indices]
 
             for batch in batches:
-                returns, advantages, states, actions, old_probs, actor_states, critic_states = batch
+                returns, advantages, states, actions, old_probs, dones, actor_states, critic_states = batch
 
                 # Get current distribution and value from models
                 self.model.actor_lstm_state, self.model.critic_lstm_state = actor_states, critic_states
-                dist, new_values = self.model(states)
+                dist, new_values = self.model(states, dones)
                 new_values = new_values
 
                 # Calculate components of actor loss
@@ -278,7 +282,7 @@ def train():
         for update_step in range(NUM_STEPS):
             action = agent.choose_action(observation)
             observation, reward, done, info = envs.step(action)
-            agent.remember(reward, done)
+            agent.finish_step(reward, done)
 
             # Record the return of each finished episode
             for i in range(NUM_ENVS):

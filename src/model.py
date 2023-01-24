@@ -48,7 +48,11 @@ class Model(nn.Module):
         self.critic_lstm_state = (torch.zeros(1, batch_size, self.hidden_size),
                                   torch.zeros(1, batch_size, self.hidden_size))
 
-    def forward(self, state):
+    def apply_mask(self, mask):
+        self.actor_lstm_state = [item * mask for item in self.actor_lstm_state]
+        self.critic_lstm_state = [item * mask for item in self.critic_lstm_state]
+
+    def forward(self, state, dones=None):
         """
         Generate action distribution and evaluate value for given state
 
@@ -69,6 +73,8 @@ class Model(nn.Module):
             critic_lstm_out, self.actor_lstm_state = self.critic_lstm(critic_lstm_in, self.critic_lstm_state)
             actor_lstm[i] = actor_lstm_out.squeeze(0)
             critic_lstm[i] = critic_lstm_out.squeeze(0)
+            if dones is not None:
+                self.apply_mask(1 - dones[i])
 
         mean = self.mean(actor_lstm)
         std = self.log_std(actor_lstm).exp()
