@@ -246,6 +246,11 @@ class Agent:
         self.reward_memory.clear()
         self.terminated_memory.clear()
 
+        self.actor_hidden_memory.clear()
+        self.actor_cell_memory.clear()
+        self.critic_hidden_memory.clear()
+        self.critic_cell_memory.clear()
+
         self.model.actor_lstm_state, self.model.critic_lstm_state = old_actor_state, old_critic_state
 
     def save_model(self):
