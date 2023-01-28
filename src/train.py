@@ -1,4 +1,5 @@
 import os
+import random
 import time
 
 import gym
@@ -15,6 +16,7 @@ NUM_UPDATES = 100
 NUM_ENVS = 4
 NUM_STEPS = 512
 BATCH_SIZE = 64
+SEQUENCE_LENGTH = 8
 
 NUM_EPOCHS = 10
 EPSILON = 0.2
@@ -55,8 +57,8 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, num_updates, num_envs, batch_size, num_epochs, epsilon, gamma,
-                 gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
+    def __init__(self, state_size, action_size, num_updates, num_envs, batch_size, sequence_length, num_epochs, epsilon, 
+                 gamma, gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
         self.model = Model(state_size, action_size)
         self.model.initialise_hidden_states(num_envs)
@@ -65,6 +67,7 @@ class Agent:
         # Store parameters
         self.num_updates = num_updates
         self.batch_size = batch_size
+        self.sequence_length = sequence_length
         self.num_epochs = num_epochs
         self.eps = epsilon
         self.gamma = gamma
@@ -158,6 +161,8 @@ class Agent:
         old_actor_state, old_critic_state = self.model.actor_lstm_state, self.model.critic_lstm_state
         final_value = self.model(state_to_tensor(next_state))[1].squeeze(0)
         returns = self.calculate_returns(final_value)
+        buffer_size = returns.size
+        num_sequences = buffer_size // self.sequence_length
 
         # Stack and reshape all sequences
         sequences = (
@@ -168,7 +173,8 @@ class Agent:
             np.stack(self.prob_memory, axis=1),
             np.stack(self.terminated_memory, axis=1)
         )
-        sequences = (np.expand_dims(np.concatenate(sequence, axis=0), 1) for sequence in sequences)
+        sequences = (np.reshape(sequence, (num_sequences, self.sequence_length, -1)) for sequence in sequences)
+        sequences = (np.moveaxis(sequence, 0, 1) for sequence in sequences)
         all_returns, all_advantages, all_states, all_actions, all_probs, all_dones = sequences
 
         lstm_states = (
@@ -177,8 +183,8 @@ class Agent:
             np.stack(self.critic_hidden_memory, axis=2),
             np.stack(self.critic_cell_memory, axis=2)
         )
-        lstm_state_shape = (1, -1, self.model.hidden_size)
-        lstm_states = (lstm_state.reshape(lstm_state_shape) for lstm_state in lstm_states)
+        lstm_state_shape = (1, num_sequences, self.sequence_length, self.model.hidden_size)
+        lstm_states = (np.reshape(lstm_state, lstm_state_shape)[:, :, 0] for lstm_state in lstm_states)
         actor_hidden_states, actor_cell_states, critic_hidden_states, critic_cell_states = lstm_states
 
         # Decay learning rate
@@ -189,26 +195,25 @@ class Agent:
         for _ in range(self.num_epochs):
 
             # Generate indices for each batch
-            size = all_returns.shape[0]
-            indices = np.arange(size)
-            indices = np.split(indices, all_returns.shape[0] // self.batch_size)
+            indices = np.arange(num_sequences)
             np.random.shuffle(indices)
+            indices = np.split(indices, buffer_size // self.batch_size)
 
             # Create each batch
             batches = [(
-                torch.tensor(all_returns[batch_indices]),
-                torch.tensor(all_advantages[batch_indices]),
-                torch.tensor(all_states[batch_indices]),
-                torch.tensor(all_actions[batch_indices]),
-                torch.tensor(all_probs[batch_indices]),
-                torch.tensor(all_dones[batch_indices]),
+                torch.tensor(all_returns[:, batch_indices]),
+                torch.tensor(all_advantages[:, batch_indices]),
+                torch.tensor(all_states[:, batch_indices]),
+                torch.tensor(all_actions[:, batch_indices]),
+                torch.tensor(all_probs[:, batch_indices]),
+                torch.tensor(all_dones[:, batch_indices]),
                 (
-                    torch.tensor(actor_hidden_states[:, batch_indices][:, :1]),
-                    torch.tensor(actor_cell_states[:, batch_indices][:, :1]),
+                    torch.tensor(actor_hidden_states[:, batch_indices]),
+                    torch.tensor(actor_cell_states[:, batch_indices]),
                 ),
                 (
-                    torch.tensor(critic_hidden_states[:, batch_indices][:, :1]),
-                    torch.tensor(critic_cell_states[:, batch_indices][:, :1]),
+                    torch.tensor(critic_hidden_states[:, batch_indices]),
+                    torch.tensor(critic_cell_states[:, batch_indices]),
                 ),
             ) for batch_indices in indices]
 
@@ -277,7 +282,8 @@ def train():
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 
     agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], NUM_UPDATES, NUM_ENVS, BATCH_SIZE,
-                  NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
+                  SEQUENCE_LENGTH, NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR,
+                  MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []

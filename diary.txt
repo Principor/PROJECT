@@ -38,3 +38,7 @@ Started making Recurrent Neural Network
 2023/01/20
 Failed to make working LSTM - reverting current work
 No attempting to follow https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/#Andrychowicz
+
+2023/01/28
+LSTM works for simple tasks
+However, performs increases when LSTM memory is not cleared - should not happen and indicates a problem exists somewhere
