@@ -70,7 +70,7 @@ class Model(nn.Module):
             actor_lstm_in = actor_forward[i].unsqueeze(0)
             critic_lstm_in = critic_forward[i].unsqueeze(0)
             actor_lstm_out, self.actor_lstm_state = self.actor_lstm(actor_lstm_in, self.actor_lstm_state)
-            critic_lstm_out, self.actor_lstm_state = self.critic_lstm(critic_lstm_in, self.critic_lstm_state)
+            critic_lstm_out, self.critic_lstm_state = self.critic_lstm(critic_lstm_in, self.critic_lstm_state)
             actor_lstm[i] = actor_lstm_out.squeeze(0)
             critic_lstm[i] = critic_lstm_out.squeeze(0)
             if dones is not None:
