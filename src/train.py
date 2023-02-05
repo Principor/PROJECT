@@ -287,6 +287,7 @@ def train():
 
     # Save the score of each episode to track progress
     scores = []
+    start_time = time.time()
 
     observation = envs.reset()
     for update in range(NUM_UPDATES):
@@ -308,7 +309,9 @@ def train():
 
         # Output progress
         if (update + 1) % LOG_FREQUENCY == 0:
-            print("Update: {}\tAvg. score: {}".format(update, np.mean(scores)))
+            print("Update: {}".format(update).ljust(15), end="")
+            print("Score: {}".format(round(float(np.mean(scores)), 2)).ljust(20), end="")
+            print("Time: {}".format(round(time.time() - start_time, 2)))
             scores.clear()
 
     envs.save("../models/normaliser")   # Save normaliser
@@ -318,6 +321,4 @@ def train():
 
 
 if __name__ == '__main__':
-    start_time = time.time()
     train()
-    print("Time taken: {}".format(time.time() - start_time))
