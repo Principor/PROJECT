@@ -16,7 +16,7 @@ NUM_UPDATES = 100
 NUM_ENVS = 4
 NUM_STEPS = 512
 BATCH_SIZE = 64
-SEQUENCE_LENGTH = 8
+SEQUENCE_LENGTH = 64
 
 NUM_EPOCHS = 10
 EPSILON = 0.2
@@ -127,7 +127,7 @@ class Agent:
         :param reward: Reward at the current step
         :param terminated: Whether the current step reach a terminal state
         """
-        self.reward_memory.append(np.expand_dims(reward, -1))
+        self.reward_memory.append(np.expand_dims(reward, -1).astype(np.float32))
         self.terminated_memory.append(np.expand_dims(terminated, -1).astype(np.float32))
 
         self.model.apply_mask(torch.tensor(1 - self.terminated_memory[-1]))
@@ -149,7 +149,7 @@ class Agent:
             delta = self.reward_memory[step] + self.gamma * next_values[step] * mask - self.value_memory[step]
             gae = delta + self.gae_lambda * self.gamma * gae * mask
             returns.insert(0, gae + self.value_memory[step])
-        return np.stack(returns, axis=1).astype(np.float32)
+        return np.stack(returns, axis=1)
 
     def learn(self, next_state):
         """

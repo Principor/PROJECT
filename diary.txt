@@ -42,3 +42,6 @@ No attempting to follow https://iclr-blog-track.github.io/2022/03/25/ppo-impleme
 2023/01/28
 LSTM works for simple tasks
 However, performs increases when LSTM memory is not cleared - should not happen and indicates a problem exists somewhere
+
+2023/02/05
+Finally have good performance with LSTM. Main problem was caused by the activation function for the action std.

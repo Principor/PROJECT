@@ -37,7 +37,10 @@ class Model(nn.Module):
         self.critic_lstm = nn.LSTM(self.hidden_size, self.hidden_size)
 
         self.mean = nn.Linear(self.hidden_size, action_size)
-        self.log_std = nn.Linear(self.hidden_size, action_size)
+        self.log_std = nn.Sequential(
+            nn.Linear(self.hidden_size, action_size),
+            nn.Softplus(),
+        )
         self.value = nn.Linear(self.hidden_size, 1)
 
         self.actor_lstm_state = self.critic_lstm_state = None
@@ -77,6 +80,6 @@ class Model(nn.Module):
                 self.apply_mask(1 - dones[i])
 
         mean = self.mean(actor_lstm)
-        std = self.log_std(actor_lstm).exp()
+        std = self.log_std(actor_lstm)
         value = self.value(critic_lstm)
         return torch.distributions.Normal(mean, std), value
