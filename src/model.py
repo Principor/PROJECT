@@ -15,10 +15,11 @@ class Model(nn.Module):
     :param hidden_size: Number of nodes in the hidden layer
     """
 
-    def __init__(self, state_size, action_size, hidden_size=128):
+    def __init__(self, state_size, action_size, hidden_size=128, recurrent_layers=False):
         super(Model, self).__init__()
 
         self.hidden_size = hidden_size
+        self.recurrent_layers = recurrent_layers
 
         self.actor_network = nn.Sequential(
             nn.Linear(state_size, self.hidden_size),
@@ -67,17 +68,21 @@ class Model(nn.Module):
         actor_forward = self.actor_network(state)
         critic_forward = self.critic_network(state)
 
-        actor_lstm = torch.zeros(sequence_length, buffer_size, self.hidden_size)
-        critic_lstm = torch.zeros(sequence_length, buffer_size, self.hidden_size)
-        for i in range(sequence_length):
-            actor_lstm_in = actor_forward[i].unsqueeze(0)
-            critic_lstm_in = critic_forward[i].unsqueeze(0)
-            actor_lstm_out, self.actor_lstm_state = self.actor_lstm(actor_lstm_in, self.actor_lstm_state)
-            critic_lstm_out, self.critic_lstm_state = self.critic_lstm(critic_lstm_in, self.critic_lstm_state)
-            actor_lstm[i] = actor_lstm_out.squeeze(0)
-            critic_lstm[i] = critic_lstm_out.squeeze(0)
-            if dones is not None:
-                self.apply_mask(1 - dones[i])
+        actor_lstm = torch.zeros_like(actor_forward)
+        critic_lstm = torch.zeros_like(critic_forward)
+        if self.recurrent_layers:
+            for i in range(sequence_length):
+                actor_lstm_in = actor_forward[i].unsqueeze(0)
+                critic_lstm_in = critic_forward[i].unsqueeze(0)
+                actor_lstm_out, self.actor_lstm_state = self.actor_lstm(actor_lstm_in, self.actor_lstm_state)
+                critic_lstm_out, self.critic_lstm_state = self.critic_lstm(critic_lstm_in, self.critic_lstm_state)
+                actor_lstm[i] = actor_lstm_out.squeeze(0)
+                critic_lstm[i] = critic_lstm_out.squeeze(0)
+                if dones is not None:
+                    self.apply_mask(1 - dones[i])
+        else:
+            actor_lstm = actor_forward
+            critic_lstm = critic_forward
 
         mean = self.mean(actor_lstm)
         std = self.log_std(actor_lstm)

@@ -12,10 +12,10 @@ from model import Model, state_to_tensor
 import racecar_driving
 
 # Parameters
-NUM_UPDATES = 100
+NUM_UPDATES = 150
 NUM_ENVS = 4
-NUM_STEPS = 512
-BATCH_SIZE = 64
+NUM_STEPS = 1024
+BATCH_SIZE = 128
 SEQUENCE_LENGTH = 64
 
 NUM_EPOCHS = 10
@@ -27,7 +27,7 @@ LEARNING_RATE = 0.0003
 DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
-LOG_FREQUENCY = 10
+LOG_FREQUENCY = 5
 RUN_NAME = "ppo"
 
 
@@ -274,7 +274,7 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('LunarLanderContinuous-v2') for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0') for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()
