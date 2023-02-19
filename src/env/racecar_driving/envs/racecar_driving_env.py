@@ -8,7 +8,7 @@ import gym
 import numpy as np
 import pybullet as p
 
-from src.env.racecar_driving.resources import car
+from racecar_driving.resources.car_generator import CarGenerator
 from src.env.racecar_driving.resources.util import Vector2
 from src.env.racecar_driving.resources.bezier import Bezier
 
@@ -66,6 +66,7 @@ class RacecarDrivingEnv(gym.Env):
                                    physicsClientId=self.client)
         p.changeDynamics(ground, -1, restitution=0.9)
 
+        self.car_generator = CarGenerator(self.client)
         self.car = None
 
         self.previous_position = Vector2(0, 0)
@@ -77,7 +78,7 @@ class RacecarDrivingEnv(gym.Env):
             Vector2(-15.36, 85.73), Vector2(3.95, 75.28), Vector2(24.56, 64.11), Vector2(59.82, 7.75),
             Vector2(74.23, -3.90), Vector2(89.52, -16.26), Vector2(119.91, -8.10), Vector2(128.87, -25.71),
             Vector2(135.91, -39.54), Vector2(141.08, -87.25), Vector2(117.49, -87.50), Vector2(46.57, -88.24),
-            Vector2(-24.34, -88.99),  Vector2(-95.26, -89.73), Vector2(-134.60, -90.14), Vector2(-99.41, -28.48),
+            Vector2(-24.34, -88.99), Vector2(-95.26, -89.73), Vector2(-134.60, -90.14), Vector2(-99.41, -28.48),
             Vector2(-66.72, -46.84), Vector2(-13.31, -76.84), Vector2(13.68, -48.74), Vector2(-1.46, -34.37),
             Vector2(-39.20, 1.45), Vector2(-76.93, 37.26)
         )
@@ -147,9 +148,6 @@ class RacecarDrivingEnv(gym.Env):
         self._output_telemetry()
         self.telemetry = []
 
-        if self.car is not None:
-            self.car.remove()
-
         if self.random_start:
             self.segment_index = random.randrange(self.bezier.num_segments)
             t = random.random()
@@ -161,8 +159,10 @@ class RacecarDrivingEnv(gym.Env):
         direction = self.bezier.get_direction(self.segment_index, t).tuple()
         angle = math.atan2(direction[1], direction[0]) - math.pi / 2
 
-        self.car = car.Car(self.client, start_position.make_3d(1.5).tuple(),
-                           p.getQuaternionFromEuler((0, 0, angle)))
+        self.car = self.car_generator.reset_car(
+            start_position.make_3d(1.5).tuple(),
+            p.getQuaternionFromEuler((0, 0, angle))
+        )
         self.previous_progress = self.bezier.get_total_progress(self.segment_index, t)
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)

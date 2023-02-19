@@ -65,14 +65,12 @@ class Car:
     :param position: The position to create the car at
     :param orientation: The orientation to create  the car with
     """
-    def __init__(self, client, position, orientation):
+
+    def __init__(self, client, position, orientation, mass=100, wheelbase=3, track_width=2.2, com_y=-0.3, com_z=-0.3):
         self.client = client
 
         half_extents = (1, 2, 0.5)
-        center_of_mass_y = -0.3
-        center_of_mass_z = -0.3
-        shape_shift = (0, -center_of_mass_y, -center_of_mass_z)
-        axle_width = 2.2
+        shape_shift = (0, -com_y, -com_z)
         axle_height = -0.25
         spring_length = 1
         wheel_radius = 0.2
@@ -85,18 +83,43 @@ class Car:
                                                 halfExtents=half_extents,
                                                 visualFramePosition=shape_shift)
 
-        self.body = p.createMultiBody(baseMass=100,
+        self.body = p.createMultiBody(baseMass=mass,
                                       baseCollisionShapeIndex=body_collision_shape,
                                       baseVisualShapeIndex=body_visual_shape,
                                       basePosition=position,
                                       baseOrientation=orientation,
                                       physicsClientId=client)
-
         p.changeDynamics(self.body, -1, linearDamping=0.002)
-        self.front_axle = Axle(self, 1.5 - center_of_mass_y, axle_width, axle_height-center_of_mass_z, spring_length,
-                               400, 40, 800, wheel_radius, wheel_mass, self.client)
-        self.rear_axle = Axle(self, -1.5 - center_of_mass_y, axle_width, axle_height-center_of_mass_z, spring_length,
-                              600, 60, 1200, wheel_radius, wheel_mass, self.client)
+
+        # Suspension parameters
+        front_weight = mass * (0.5 + com_y / wheelbase)
+        rear_weight = mass * (0.5 - com_y / wheelbase)
+        spring_scalar = 5
+        damper_scalar = 0.5
+        rollbar_scalar = 10
+
+        self.front_axle = Axle(self,
+                               wheelbase / 2 - com_y,
+                               track_width,
+                               axle_height - com_z,
+                               spring_length,
+                               front_weight * spring_scalar,
+                               front_weight * damper_scalar,
+                               front_weight * rollbar_scalar,
+                               wheel_radius,
+                               wheel_mass,
+                               self.client)
+        self.rear_axle = Axle(self,
+                              -wheelbase / 2 - com_y,
+                              track_width,
+                              axle_height - com_z,
+                              spring_length,
+                              rear_weight * spring_scalar,
+                              rear_weight * damper_scalar,
+                              rear_weight * rollbar_scalar,
+                              wheel_radius,
+                              wheel_mass,
+                              self.client)
 
         self.horsepower = 50
         self.max_brake_torque = 150
@@ -164,6 +187,7 @@ class Axle:
     :param wheel_mass The mass of the wheels
     :param client: The ID of the physics client that the car was added to
     """
+
     def __init__(self, car, axle_position, axle_width, axle_height, spring_length, spring_stiffness, damper_stiffness,
                  rollbar_stiffness, wheel_radius, wheel_mass, client):
         self.car = car
@@ -247,6 +271,7 @@ class Wheel:
     :param mass: The mass of the wheel
     :param client: The ID of the physics client that the car was added to
     """
+
     def __init__(self, car, start_position, max_spring_length, spring_stiffness, damper_stiffness, radius, mass,
                  client):
         self.car = car
