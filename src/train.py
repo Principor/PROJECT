@@ -28,7 +28,7 @@ DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 LOG_FREQUENCY = 5
-RUN_NAME = "ppo"
+RUN_NAME = "car3"
 
 
 def normalise(x):
@@ -274,7 +274,7 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0') for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=3) for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()
@@ -314,10 +314,10 @@ def train():
             print("Time: {}".format(round(time.time() - start_time, 2)))
             scores.clear()
 
-    envs.save("../models/normaliser")   # Save normaliser
+    agent.save_model()
+    envs.save("../models/{}/normaliser".format(RUN_NAME))   # Save normaliser
     envs.close()
     writer.close()
-    agent.save_model()
 
 
 if __name__ == '__main__':

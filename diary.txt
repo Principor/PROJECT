@@ -45,3 +45,6 @@ However, performs increases when LSTM memory is not cleared - should not happen 
 
 2023/02/05
 Finally have good performance with LSTM. Main problem was caused by the activation function for the action std.
+
+2023/02/19
+Starting work on supporting different car configurations

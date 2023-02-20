@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from model import Model
 import racecar_driving
 
+RUN_NAME = "ppo"
 new_telemetry = True
 plot_throttle = False
 plot_position = False
@@ -17,9 +18,10 @@ plot_speed = True
 def main():
     if new_telemetry:
         env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', save_telemetry=True, random_start=False)])
-        env = VecNormalize.load("../models/normaliser", env)    # Load normaliser generated during training so inputs match
+        # Load normaliser generated during training so inputs match
+        env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
         actor = Model(env.observation_space.shape[0], env.action_space.shape[0], 128)
-        actor.load_state_dict(torch.load("../models/ppo/model.pth"))
+        actor.load_state_dict(torch.load("../models/{}/model.pth".format(RUN_NAME)))
 
         done = False
         observation = env.reset()

@@ -6,21 +6,34 @@ from model import Model, state_to_tensor
 import racecar_driving
 
 # Parameters
-NUM_STEPS = 5000
+GUI = False
+NUM_EPISODES = 10
+CAR_INDEX = 3
+RUN_NAME = "car3"
 
 if __name__ == '__main__':
     """
     Test the trained model
     """
 
-    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=True)])
-    env = VecNormalize.load("../models/normaliser", env)    # Load normaliser generated during training so inputs match
+    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=GUI, car_index=CAR_INDEX)])
+    # Load normaliser generated during training so inputs match
+    env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
     actor = Model(env.observation_space.shape[0], env.action_space.shape[0])
-    actor.load_state_dict(torch.load("../models/ppo/model.pth"))
+    actor.load_state_dict(torch.load("../models/{}/model.pth".format(RUN_NAME)))
 
-    observation = env.reset()
-    for _ in range(NUM_STEPS):
-        action = actor(state_to_tensor(observation))[0].sample().detach().numpy().squeeze(0)
-        observation, reward, done, info = env.step(action)
-        if done:
-            observation = env.reset()
+    print()
+
+    scores = []
+    for episode in range(NUM_EPISODES):
+        done = False
+        score = 0
+        actor.initialise_hidden_states(1)
+        observation = env.reset()
+        while not done:
+            action = actor(state_to_tensor(observation))[0].sample().detach().numpy().squeeze(0)
+            observation, reward, done, info = env.step(action)
+            score += env.get_original_reward().item()
+        print("Episode {} score: {}".format(episode, score))
+        scores.append(score)
+    print("\nMean score: {}".format(sum(scores) / NUM_EPISODES))
