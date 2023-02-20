@@ -31,7 +31,7 @@ class RacecarDrivingEnv(gym.Env):
         'render_modes': ['human'],
     }
 
-    def __init__(self, gui=False, random_start=True, save_telemetry=False):
+    def __init__(self, gui=False, random_start=True, save_telemetry=False, car_index=0):
         self.action_space = gym.spaces.box.Box(
             low=np.array([-1, -1], dtype=np.float64),
             high=np.array([1, 1], dtype=np.float64)
@@ -66,7 +66,7 @@ class RacecarDrivingEnv(gym.Env):
                                    physicsClientId=self.client)
         p.changeDynamics(ground, -1, restitution=0.9)
 
-        self.car_generator = CarGenerator(self.client)
+        self.car_generator = CarGenerator(self.client, car_index)
         self.car = None
 
         self.previous_position = Vector2(0, 0)
