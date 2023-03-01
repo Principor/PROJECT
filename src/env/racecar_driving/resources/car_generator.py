@@ -1,3 +1,5 @@
+import numpy as np
+
 from racecar_driving.resources import car
 
 """
@@ -15,7 +17,7 @@ kwargs = [
         "track_width": 2.1,
         "com_y": -0.3,
         "com_z": 0.1,
-     },
+    },
     {
         "mass": 113,
         "wheelbase": 3.5,
@@ -43,7 +45,7 @@ kwargs = [
 class CarGenerator:
 
     def __init__(self, client, car_index):
-        assert 0 <= car_index < len(kwargs)
+        assert -1 <= car_index < len(kwargs)
         self.car_index = car_index
         self.client = client
         self.car = None
@@ -51,5 +53,13 @@ class CarGenerator:
     def reset_car(self, position, orientation):
         if self.car is not None:
             self.car.remove()
-        self.car = car.Car(self.client, position, orientation, **kwargs[self.car_index])
+        if self.car_index == -1:
+            self.car = car.Car(self.client, position, orientation,
+                               mass=np.random.uniform(75, 125),
+                               wheelbase=np.random.uniform(2.5, 3.5),
+                               track_width=np.random.uniform(2.1, 3),
+                               com_y=np.random.uniform(-0.5, 0),
+                               com_z=np.random.uniform(-1, 0.5))
+        else:
+            self.car = car.Car(self.client, position, orientation, **kwargs[self.car_index])
         return self.car

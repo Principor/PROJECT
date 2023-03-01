@@ -28,7 +28,7 @@ DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 LOG_FREQUENCY = 5
-RUN_NAME = "car3"
+RUN_NAME = "lstm"
 
 
 def normalise(x):
@@ -274,7 +274,7 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=3) for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=-1) for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()

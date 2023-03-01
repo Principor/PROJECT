@@ -8,8 +8,8 @@ import racecar_driving
 # Parameters
 GUI = False
 NUM_EPISODES = 10
-CAR_INDEX = 3
-RUN_NAME = "car3"
+CAR_INDEX = 2
+RUN_NAME = "car2"
 
 if __name__ == '__main__':
     """
