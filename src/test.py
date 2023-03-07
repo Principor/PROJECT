@@ -8,8 +8,8 @@ import racecar_driving
 # Parameters
 GUI = False
 NUM_EPISODES = 10
-CAR_INDEX = 2
-RUN_NAME = "car2"
+CAR_INDEX = 1
+RUN_NAME = "ff_extra_state"
 
 if __name__ == '__main__':
     """
@@ -19,17 +19,18 @@ if __name__ == '__main__':
     env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=GUI, car_index=CAR_INDEX)])
     # Load normaliser generated during training so inputs match
     env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
+    env.training = False
     actor = Model(env.observation_space.shape[0], env.action_space.shape[0])
     actor.load_state_dict(torch.load("../models/{}/model.pth".format(RUN_NAME)))
 
     print()
 
     scores = []
+    observation = env.reset()
     for episode in range(NUM_EPISODES):
         done = False
         score = 0
         actor.initialise_hidden_states(1)
-        observation = env.reset()
         while not done:
             action = actor(state_to_tensor(observation))[0].sample().detach().numpy().squeeze(0)
             observation, reward, done, info = env.step(action)

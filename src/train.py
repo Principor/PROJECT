@@ -28,7 +28,7 @@ DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 LOG_FREQUENCY = 5
-RUN_NAME = "lstm"
+RUN_NAME = "ff_extra_state"
 
 
 def normalise(x):

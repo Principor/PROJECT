@@ -48,3 +48,6 @@ Finally have good performance with LSTM. Main problem was caused by the activati
 
 2023/02/19
 Starting work on supporting different car configurations
+
+2023/03/07
+Added car properties to state space

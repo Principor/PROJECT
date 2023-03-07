@@ -69,6 +69,12 @@ class Car:
     def __init__(self, client, position, orientation, mass=100, wheelbase=3, track_width=2.2, com_y=-0.3, com_z=-0.3):
         self.client = client
 
+        self.mass = mass
+        self.wheelbase = wheelbase
+        self.track_width = track_width
+        self.com_y = com_y
+        self.com_z = com_z
+
         half_extents = (1, 2, 0.5)
         shape_shift = (0, -com_y, -com_z)
         axle_height = -0.25
@@ -170,6 +176,8 @@ class Car:
         """
         p.removeBody(self.body)
 
+    def get_configuration(self):
+        return [self.mass, self.wheelbase, self.track_width, self.com_y, self.com_z]
 
 class Axle:
     """

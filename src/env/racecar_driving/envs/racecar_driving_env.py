@@ -37,8 +37,8 @@ class RacecarDrivingEnv(gym.Env):
             high=np.array([1, 1], dtype=np.float64)
         )
         self.observation_space = gym.spaces.box.Box(
-            low=np.full(16, -np.inf),
-            high=np.full(16, np.inf),
+            low=np.full(21, -np.inf),
+            high=np.full(21, np.inf),
         )
 
         self.gui = gui
@@ -195,6 +195,7 @@ class RacecarDrivingEnv(gym.Env):
             local = car_inverse.transform_direction(point).tuple()
             observation.append(local[0])
             observation.append(local[1])
+        observation += self.car.get_configuration()
         return np.array(observation, dtype=np.float32)
 
     def _output_telemetry(self):
