@@ -1,9 +1,17 @@
+import enum
+
 import torch
 from torch import nn
 
 
 def state_to_tensor(state):
     return torch.tensor(state).unsqueeze(0)
+
+
+class StateMaskType(enum.Enum):
+    NO_STATE_MASK = 0
+    ACTOR_STATE_MASK = 1
+    FULL_STATE_MASK = 2
 
 
 class Model(nn.Module):
@@ -15,11 +23,16 @@ class Model(nn.Module):
     :param hidden_size: Number of nodes in the hidden layer
     """
 
-    def __init__(self, state_size, action_size, hidden_size=128, recurrent_layers=False):
+    def __init__(self, state_size, action_size, hidden_size=128, recurrent_layers=False,
+                 state_mask_type=StateMaskType.NO_STATE_MASK):
         super(Model, self).__init__()
 
         self.hidden_size = hidden_size
         self.recurrent_layers = recurrent_layers
+
+        self.state_mask = torch.ones(21)
+        self.state_mask[-5:] = 0
+        self.state_mask_type = state_mask_type
 
         self.actor_network = nn.Sequential(
             nn.Linear(state_size, self.hidden_size),
@@ -65,8 +78,16 @@ class Model(nn.Module):
         """
         sequence_length, buffer_size = state.shape[:2]
 
-        actor_forward = self.actor_network(state)
-        critic_forward = self.critic_network(state)
+        actor_state = state
+        critic_state = state
+        if self.state_mask_type == StateMaskType.ACTOR_STATE_MASK:
+            actor_state *= self.state_mask
+        elif self.state_mask_type == StateMaskType.FULL_STATE_MASK:
+            actor_state *= self.state_mask
+            critic_state *= self.state_mask
+
+        actor_forward = self.actor_network(actor_state)
+        critic_forward = self.critic_network(critic_state)
 
         actor_lstm = torch.zeros_like(actor_forward)
         critic_lstm = torch.zeros_like(critic_forward)
