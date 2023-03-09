@@ -8,7 +8,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
-from model import Model, state_to_tensor
+from model import Model, StateMaskType, state_to_tensor
 import racecar_driving
 
 # Parameters
@@ -28,7 +28,11 @@ DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 LOG_FREQUENCY = 5
-RUN_NAME = "ff_extra_state"
+RUN_NAME = "lstm_asymmetric"
+
+RECURRENT_LAYERS = True
+STATE_MASK_TYPE = StateMaskType.ACTOR_STATE_MASK
+CAR_INDEX = -1
 
 
 def normalise(x):
@@ -57,10 +61,10 @@ class Agent:
     :param gamma: Discount factor
     :param lr: Learning rate
     """
-    def __init__(self, state_size, action_size, num_updates, num_envs, batch_size, sequence_length, num_epochs, epsilon, 
-                 gamma, gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
+    def __init__(self, state_size, action_size, recurrent_layers, state_mask_type, num_updates, num_envs, batch_size,
+                 sequence_length, num_epochs, epsilon, gamma, gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
         # Create models
-        self.model = Model(state_size, action_size)
+        self.model = Model(state_size, action_size, recurrent_layers, state_mask_type)
         self.model.initialise_hidden_states(num_envs)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
 
@@ -265,7 +269,7 @@ class Agent:
         path = "../models/{}".format(RUN_NAME)
         if not os.path.exists(path):
             os.makedirs(path)
-        torch.save(self.model.state_dict(), path + "/model.pth")
+        self.model.save_model(path + "/model.pth")
 
 
 def train():
@@ -274,16 +278,16 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=-1) for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=CAR_INDEX) for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()
 
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 
-    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], NUM_UPDATES, NUM_ENVS, BATCH_SIZE,
-                  SEQUENCE_LENGTH, NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA, CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR,
-                  MAX_GRAD_NORM)
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], RECURRENT_LAYERS, STATE_MASK_TYPE,
+                  NUM_UPDATES, NUM_ENVS, BATCH_SIZE, SEQUENCE_LENGTH, NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA,
+                  CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
 
     # Save the score of each episode to track progress
     scores = []

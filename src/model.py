@@ -23,16 +23,18 @@ class Model(nn.Module):
     :param hidden_size: Number of nodes in the hidden layer
     """
 
-    def __init__(self, state_size, action_size, hidden_size=128, recurrent_layers=False,
+    def __init__(self, state_size, action_size, recurrent_layers=False,
                  state_mask_type=StateMaskType.NO_STATE_MASK):
         super(Model, self).__init__()
 
-        self.hidden_size = hidden_size
+        self.state_size = state_size
+        self.action_size = action_size
+        self.hidden_size = 128
         self.recurrent_layers = recurrent_layers
+        self.state_mask_type = state_mask_type
 
         self.state_mask = torch.ones(21)
         self.state_mask[-5:] = 0
-        self.state_mask_type = state_mask_type
 
         self.actor_network = nn.Sequential(
             nn.Linear(state_size, self.hidden_size),
@@ -109,3 +111,23 @@ class Model(nn.Module):
         std = self.log_std(actor_lstm)
         value = self.value(critic_lstm)
         return torch.distributions.Normal(mean, std), value
+
+    def save_model(self, path):
+        torch.save({
+            'state_size': self.state_size,
+            'action_size': self.action_size,
+            'state_dict': self.state_dict(),
+            'recurrent_layers': self.recurrent_layers,
+            'state_mask_type': self.state_mask_type
+        }, path)
+
+    @staticmethod
+    def load_model(path):
+        checkpoint = torch.load(path)
+        state_size = checkpoint['state_size']
+        action_size = checkpoint['action_size']
+        recurrent_layers = checkpoint['recurrent_layers']
+        state_mask_type = checkpoint['state_mask_type']
+        model = Model(state_size, action_size, recurrent_layers, state_mask_type)
+        model.load_state_dict(checkpoint['state_dict'])
+        return model

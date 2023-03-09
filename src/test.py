@@ -8,8 +8,8 @@ import racecar_driving
 # Parameters
 GUI = False
 NUM_EPISODES = 10
-CAR_INDEX = 1
-RUN_NAME = "ff_extra_state"
+CAR_INDEX = 3
+RUN_NAME = "lstm_asymmetric"
 
 if __name__ == '__main__':
     """
@@ -20,8 +20,7 @@ if __name__ == '__main__':
     # Load normaliser generated during training so inputs match
     env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
     env.training = False
-    actor = Model(env.observation_space.shape[0], env.action_space.shape[0])
-    actor.load_state_dict(torch.load("../models/{}/model.pth".format(RUN_NAME)))
+    actor = Model.load_model("../models/{}/model.pth".format(RUN_NAME))
 
     print()
 

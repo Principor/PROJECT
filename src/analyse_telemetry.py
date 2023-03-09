@@ -6,10 +6,10 @@ import torch
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 import matplotlib.pyplot as plt
 
-from model import Model
+from model import Model, state_to_tensor
 import racecar_driving
 
-RUN_NAME = "ppo"
+RUN_NAME = "ff"
 new_telemetry = True
 plot_throttle = False
 plot_position = False
@@ -20,13 +20,12 @@ def main():
         env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', save_telemetry=True, random_start=False)])
         # Load normaliser generated during training so inputs match
         env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
-        actor = Model(env.observation_space.shape[0], env.action_space.shape[0], 128)
-        actor.load_state_dict(torch.load("../models/{}/model.pth".format(RUN_NAME)))
+        actor = Model.load_model("../models/{}/model.pth".format(RUN_NAME))
 
         done = False
         observation = env.reset()
         while not done:
-            action = actor(torch.tensor(observation, dtype=torch.float32))[0].sample().detach().numpy()
+            action = actor(state_to_tensor(observation))[0].sample().detach().numpy().squeeze(0)
             observation, reward, done, info = env.step(action)
 
     with open('../telemetry/output.pkl', 'rb') as file:
