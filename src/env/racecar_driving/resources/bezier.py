@@ -294,7 +294,7 @@ class Bezier:
     def get_distance_from_curve(self, point, segment_index):
 
         """
-        Estimate distance from a segment, and t of closest point
+        Estimate distance from a segment, and t of the closest point
 
         :param point: Point to find distance from
         :param segment_index: The index of the segment
@@ -307,7 +307,28 @@ class Bezier:
         return (lerp_points[2][1] - lerp_points[2][0]).normalised()
 
     def move_point(self, point_index, x_offset, y_offset):
-        self.control_points[point_index] += Vector2(x_offset, y_offset)
+        offset = Vector2(x_offset, y_offset)
+        self.control_points[point_index] += offset
+        # The start and end of each segment should have control points that form a straight line, so that direction of
+        # curve is continuous
+        if point_index % 3 == 0:
+            self.control_points[(point_index - 1) % self.num_points] += offset
+            self.control_points[(point_index + 1) % self.num_points] += offset
+        else:
+            if point_index % 3 == 1:
+                mid_index = (point_index - 1) % self.num_points
+                opp_index = (point_index - 2) % self.num_points
+            else:
+                mid_index = (point_index + 1) % self.num_points
+                opp_index = (point_index + 2) % self.num_points
+
+            cur_point = self.control_points[point_index]
+            mid_point = self.control_points[mid_index]
+            opp_point = self.control_points[opp_index]
+
+            opp_dir = (mid_point - cur_point).normalised()
+            opp_dist = (opp_point - mid_point).magnitude()
+            self.control_points[opp_index] = mid_point + opp_dir * opp_dist
 
 
 class SturmSequence:
