@@ -1,5 +1,6 @@
 import time
-from tkinter import Tk, Canvas
+from tkinter import Tk, Canvas, Button
+from tkinter.simpledialog import askstring
 
 from racecar_driving.resources.bezier import Bezier
 from racecar_driving.resources.util import Vector2
@@ -16,7 +17,7 @@ def screen_space_to_world_space(x, y):
 class TrackEditor:
     def __init__(self):
         self.root = Tk()
-        self.root.geometry('600x600')
+        self.root.geometry('600x625')
         self.root.resizable(False, False)
 
         self.handle_radius = 7
@@ -43,6 +44,9 @@ class TrackEditor:
             Vector2(-66.72, -46.84), Vector2(-13.31, -76.84), Vector2(13.68, -48.74), Vector2(-1.46, -34.37),
             Vector2(-39.20, 1.45), Vector2(-76.93, 37.26)
         )
+
+        self.save_button = Button(self.root, text="Save", command=self.save)
+        self.save_button.pack()
 
         self.render()
         self.root.mainloop()
@@ -143,6 +147,11 @@ class TrackEditor:
                     colour = 'black'
                 self.canvas.create_oval(x0 - radius, y0 - radius, x0 + radius, y0 + radius, fill=colour)
         self.root.after(0, self.render)
+
+    def save(self):
+        name = askstring("Save", "What do you want to save this as?")
+        self.bezier.save(name)
+
 
 
 if __name__ == '__main__':

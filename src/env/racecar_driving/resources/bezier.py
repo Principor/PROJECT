@@ -1,8 +1,12 @@
 import math
+import pickle
 
 import pybullet as p
 
 from racecar_driving.resources.util import Vector2
+
+
+SAVE_PATH = "..\\tracks\\"
 
 
 def get_length(a, b, c, d):
@@ -365,6 +369,11 @@ class Bezier:
 
         self.num_points += 3
         self.num_segments += 1
+
+    def save(self, name):
+        with open(SAVE_PATH + name + ".track", "wb") as file:
+            pickle.dump(self, file)
+
 
 class SturmSequence:
     """
