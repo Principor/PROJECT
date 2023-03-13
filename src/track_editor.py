@@ -6,7 +6,7 @@ from racecar_driving.resources.util import Vector2
 
 
 def world_space_to_screen_space(position):
-    return position * 2 + Vector2(300, 300)
+    return Vector2(300, 300) + position * 2
 
 
 class TrackEditor:
@@ -17,11 +17,15 @@ class TrackEditor:
 
         self.handle_radius = 7
 
+        self.prev_x, self.prev_y = 0, 0
         self.selected_point = -1
+        self.moving_point = False
 
         self.canvas = Canvas(self.root, width=600, height=600)
         self.canvas.pack()
         self.canvas.bind('<Motion>', self.mouse_move)
+        self.canvas.bind('<Button 1>', self.mouse_1_press)
+        self.canvas.bind('<ButtonRelease 1>', self.mouse_1_release)
 
         self.bezier = Bezier(
             Vector2(-114.67, 73.08), Vector2(-131.89, 89.42), Vector2(-103.53, 115.41), Vector2(-86.17, 100.00),
@@ -38,7 +42,21 @@ class TrackEditor:
         self.root.mainloop()
 
     def mouse_move(self, event):
-        self.handle_selection(event.x, event.y)
+        if self.moving_point:
+            self.move_point(event.x, event.y)
+        else:
+            self.handle_selection(event.x, event.y)
+        self.prev_x, self.prev_y = event.x, event.y
+
+    def mouse_1_press(self, event):
+        if self.selected_point != -1:
+            self.moving_point = True
+
+    def mouse_1_release(self, event):
+        self.moving_point = False
+
+    def move_point(self, mouse_x, mouse_y):
+        self.bezier.move_point(self.selected_point, (mouse_x-self.prev_x)/2, (mouse_y-self.prev_y)/2)
 
     def handle_selection(self, mouse_x, mouse_y):
         self.selected_point = 0
@@ -95,5 +113,3 @@ class TrackEditor:
 
 if __name__ == '__main__':
     TrackEditor()
-
-

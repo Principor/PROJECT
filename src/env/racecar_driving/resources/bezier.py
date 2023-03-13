@@ -172,7 +172,7 @@ class Bezier:
     :param args: Points on the spline
     """
     def __init__(self, *args):
-        self.control_points = args
+        self.control_points = list(args)
         self.num_points = len(self.control_points)
         self.num_segments = self.num_points // 3
 
@@ -305,6 +305,9 @@ class Bezier:
     def get_direction(self, segment_index, t):
         lerp_points = get_lerp_points(*self.get_segment_points(segment_index), t)
         return (lerp_points[2][1] - lerp_points[2][0]).normalised()
+
+    def move_point(self, point_index, x_offset, y_offset):
+        self.control_points[point_index] += Vector2(x_offset, y_offset)
 
 
 class SturmSequence:
