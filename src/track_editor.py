@@ -1,3 +1,4 @@
+import time
 from tkinter import Tk, Canvas
 
 from racecar_driving.resources.bezier import Bezier
@@ -14,8 +15,13 @@ class TrackEditor:
         self.root.geometry('600x600')
         self.root.resizable(False, False)
 
+        self.handle_radius = 7
+
+        self.selected_point = -1
+
         self.canvas = Canvas(self.root, width=600, height=600)
         self.canvas.pack()
+        self.canvas.bind('<Motion>', self.mouse_move)
 
         self.bezier = Bezier(
             Vector2(-114.67, 73.08), Vector2(-131.89, 89.42), Vector2(-103.53, 115.41), Vector2(-86.17, 100.00),
@@ -31,9 +37,27 @@ class TrackEditor:
         self.render()
         self.root.mainloop()
 
+    def mouse_move(self, event):
+        self.handle_selection(event.x, event.y)
+
+    def handle_selection(self, mouse_x, mouse_y):
+        self.selected_point = 0
+        min_dist = float('inf')
+        for point_index in range(self.bezier.num_points):
+            point = self.bezier.get_control_point(point_index)
+            x, y = world_space_to_screen_space(point).tuple()
+            distance_sq = (mouse_x - x) ** 2 + (mouse_y - y) ** 2
+            if distance_sq < min_dist:
+                min_dist = distance_sq
+                self.selected_point = point_index
+        if min_dist > self.handle_radius * self.handle_radius:
+            self.selected_point = -1
+
     def render(self):
+        self.canvas.update()
+        self.canvas.delete('all')
+        # Draw control lines
         for segment_index in range(self.bezier.num_segments):
-            # Draw control lines
             for point_index in range(3):
                 point0 = self.bezier.get_segment_point(segment_index, point_index)
                 x0, y0 = world_space_to_screen_space(point0).tuple()
@@ -42,6 +66,7 @@ class TrackEditor:
                 self.canvas.create_line(x0, y0, x1, y1, dash=(3,))
 
             # Draw curve
+        for segment_index in range(self.bezier.num_segments):
             t_steps = 20
             start_point = self.bezier.get_curve_point(segment_index, 0)
             prev_x, prev_y = world_space_to_screen_space(start_point).tuple()
@@ -52,13 +77,20 @@ class TrackEditor:
                 self.canvas.create_line(prev_x, prev_y, cur_x, cur_y, fill='blue', width=3)
                 prev_x, prev_y = cur_x, cur_y
 
-            # Draw control points
+        # Draw control points
+        for segment_index in range(self.bezier.num_segments):
             for point_index in range(3):
                 point0 = self.bezier.get_segment_point(segment_index, point_index)
                 x0, y0 = world_space_to_screen_space(point0).tuple()
                 radius = 7
-                colour = 'red' if point_index == 0 else 'black'
+                if self.selected_point == segment_index * 3 + point_index:
+                    colour = 'yellow'
+                elif point_index == 0:
+                    colour = 'red'
+                else:
+                    colour = 'black'
                 self.canvas.create_oval(x0 - radius, y0 - radius, x0 + radius, y0 + radius, fill=colour)
+        self.root.after(0, self.render)
 
 
 if __name__ == '__main__':
