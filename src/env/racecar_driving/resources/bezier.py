@@ -346,6 +346,26 @@ class Bezier:
         self.num_points -= 3
         self.num_segments -= 1
 
+    def split_segment(self, point):
+        closest_segment = 0
+        min_dist = float('inf')
+        closest_t = 0
+        for segment_index in range(self.num_segments):
+            t, dist = self.get_distance_from_curve(point, segment_index)
+            if dist < min_dist:
+                closest_segment = segment_index
+                min_dist = dist
+                closest_t = t
+        new_curves = split_at_point(*self.get_segment_points(closest_segment), closest_t)
+        self.control_points[closest_segment * 3 + 1] = new_curves[0][1]
+        self.control_points[closest_segment * 3 + 2] = new_curves[0][2]
+        self.control_points.insert(closest_segment * 3 + 3, new_curves[1][2])
+        self.control_points.insert(closest_segment * 3 + 3, new_curves[1][1])
+        self.control_points.insert(closest_segment * 3 + 3, new_curves[1][0])
+
+        self.num_points += 3
+        self.num_segments += 1
+
 class SturmSequence:
     """
     Generate sequences required for solving a polynomial using Sturm's Theory

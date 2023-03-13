@@ -57,6 +57,11 @@ class TrackEditor:
     def left_mouse_press(self, event):
         if self.selected_point != -1:
             self.moving_point = True
+        if self.selected_line != -1:
+            self.bezier.split_segment(screen_space_to_world_space(event.x, event.y))
+            self.selected_point = (self.selected_line + 1) * 3
+            self.moving_point = True
+            self.selected_line = -1
 
     def left_mouse_release(self, event):
         self.moving_point = False
