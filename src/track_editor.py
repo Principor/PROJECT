@@ -24,8 +24,9 @@ class TrackEditor:
         self.canvas = Canvas(self.root, width=600, height=600)
         self.canvas.pack()
         self.canvas.bind('<Motion>', self.mouse_move)
-        self.canvas.bind('<Button 1>', self.mouse_1_press)
-        self.canvas.bind('<ButtonRelease 1>', self.mouse_1_release)
+        self.canvas.bind('<Button 1>', self.left_mouse_press)
+        self.canvas.bind('<ButtonRelease 1>', self.left_mouse_release)
+        self.canvas.bind('<Button 3>', self.right_mouse_press)
 
         self.bezier = Bezier(
             Vector2(-114.67, 73.08), Vector2(-131.89, 89.42), Vector2(-103.53, 115.41), Vector2(-86.17, 100.00),
@@ -48,12 +49,17 @@ class TrackEditor:
             self.handle_selection(event.x, event.y)
         self.prev_x, self.prev_y = event.x, event.y
 
-    def mouse_1_press(self, event):
+    def left_mouse_press(self, event):
         if self.selected_point != -1:
             self.moving_point = True
 
-    def mouse_1_release(self, event):
+    def left_mouse_release(self, event):
         self.moving_point = False
+
+    def right_mouse_press(self, event):
+        if self.selected_point != -1 and not self.moving_point:
+            self.bezier.delete_point(self.selected_point)
+            self.selected_point = -1
 
     def move_point(self, mouse_x, mouse_y):
         self.bezier.move_point(self.selected_point, (mouse_x-self.prev_x)/2, (mouse_y-self.prev_y)/2)

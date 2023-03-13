@@ -330,6 +330,21 @@ class Bezier:
             opp_dist = (opp_point - mid_point).magnitude()
             self.control_points[opp_index] = mid_point + opp_dir * opp_dist
 
+    def delete_point(self, point_index):
+        if self.num_segments == 2:
+            return
+        if point_index % 3 == 1:
+            point_index -= 1
+        elif point_index % 3 == 2:
+            point_index += 1
+        if point_index > 0:
+            self.control_points = self.control_points[:point_index-1] + self.control_points[point_index+2:]
+        else:
+            print("Tricky one")
+            self.control_points = self.control_points[-3:-1] + self.control_points[2:-3]
+
+        self.num_points -= 3
+        self.num_segments -= 1
 
 class SturmSequence:
     """
