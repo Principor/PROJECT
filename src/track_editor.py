@@ -5,8 +5,12 @@ from racecar_driving.resources.bezier import Bezier
 from racecar_driving.resources.util import Vector2
 
 
-def world_space_to_screen_space(position):
-    return Vector2(300, 300) + position * 2
+def world_space_to_screen_space(vector):
+    return (Vector2(300, 300) + vector * 2).tuple()
+
+
+def screen_space_to_world_space(x, y):
+    return Vector2(x - 300, y - 300) / 2
 
 
 class TrackEditor:
@@ -19,6 +23,7 @@ class TrackEditor:
 
         self.prev_x, self.prev_y = 0, 0
         self.selected_point = -1
+        self.selected_line = -1
         self.moving_point = False
 
         self.canvas = Canvas(self.root, width=600, height=600)
@@ -65,47 +70,65 @@ class TrackEditor:
         self.bezier.move_point(self.selected_point, (mouse_x-self.prev_x)/2, (mouse_y-self.prev_y)/2)
 
     def handle_selection(self, mouse_x, mouse_y):
-        self.selected_point = 0
+        self.selected_point = -1
+        self.selected_line = -1
+
         min_dist = float('inf')
         for point_index in range(self.bezier.num_points):
             point = self.bezier.get_control_point(point_index)
-            x, y = world_space_to_screen_space(point).tuple()
+            x, y = world_space_to_screen_space(point)
             distance_sq = (mouse_x - x) ** 2 + (mouse_y - y) ** 2
             if distance_sq < min_dist:
                 min_dist = distance_sq
                 self.selected_point = point_index
         if min_dist > self.handle_radius * self.handle_radius:
             self.selected_point = -1
+        else:
+            return
+
+        min_dist = float('inf')
+        for segment_index in range(self.bezier.num_segments):
+            _, dist = self.bezier.get_distance_from_curve(screen_space_to_world_space(mouse_x, mouse_y), segment_index)
+            if dist < min_dist:
+                min_dist = dist
+                self.selected_line = segment_index
+        if min_dist * 2 > self.handle_radius:
+            self.selected_line = -1
 
     def render(self):
         self.canvas.update()
         self.canvas.delete('all')
+
         # Draw control lines
         for segment_index in range(self.bezier.num_segments):
             for point_index in range(3):
                 point0 = self.bezier.get_segment_point(segment_index, point_index)
-                x0, y0 = world_space_to_screen_space(point0).tuple()
+                x0, y0 = world_space_to_screen_space(point0)
                 point1 = self.bezier.get_segment_point(segment_index, point_index + 1)
-                x1, y1 = world_space_to_screen_space(point1).tuple()
+                x1, y1 = world_space_to_screen_space(point1)
                 self.canvas.create_line(x0, y0, x1, y1, dash=(3,))
 
-            # Draw curve
+        # Draw curve
         for segment_index in range(self.bezier.num_segments):
             t_steps = 20
             start_point = self.bezier.get_curve_point(segment_index, 0)
-            prev_x, prev_y = world_space_to_screen_space(start_point).tuple()
+            prev_x, prev_y = world_space_to_screen_space(start_point)
             for step in range(t_steps):
                 t = (step + 1) / t_steps
                 current_point = self.bezier.get_curve_point(segment_index, t)
-                cur_x, cur_y = world_space_to_screen_space(current_point).tuple()
-                self.canvas.create_line(prev_x, prev_y, cur_x, cur_y, fill='blue', width=3)
+                cur_x, cur_y = world_space_to_screen_space(current_point)
+                if self.selected_line == segment_index:
+                    colour = 'yellow'
+                else:
+                    colour = 'blue'
+                self.canvas.create_line(prev_x, prev_y, cur_x, cur_y, fill=colour, width=3)
                 prev_x, prev_y = cur_x, cur_y
 
         # Draw control points
         for segment_index in range(self.bezier.num_segments):
             for point_index in range(3):
                 point0 = self.bezier.get_segment_point(segment_index, point_index)
-                x0, y0 = world_space_to_screen_space(point0).tuple()
+                x0, y0 = world_space_to_screen_space(point0)
                 radius = 7
                 if self.selected_point == segment_index * 3 + point_index:
                     colour = 'yellow'
