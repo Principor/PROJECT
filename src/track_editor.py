@@ -42,6 +42,16 @@ class TrackEditor:
                 self.canvas.create_oval(x0 - 5, y0 - 5, x0 + 5, y0 + 5, fill='black')
                 self.canvas.create_line(x0, y0, x1, y1)
 
+            t_steps = 20
+            start_point = self.bezier.get_curve_point(segment_index, 0)
+            prev_x, prev_y = world_space_to_screen_space(start_point).tuple()
+            for step in range(t_steps):
+                t = (step + 1) / t_steps
+                current_point = self.bezier.get_curve_point(segment_index, t)
+                cur_x, cur_y = world_space_to_screen_space(current_point).tuple()
+                self.canvas.create_line(prev_x, prev_y, cur_x, cur_y)
+                prev_x, prev_y = cur_x, cur_y
+
 
 if __name__ == '__main__':
     TrackEditor()
