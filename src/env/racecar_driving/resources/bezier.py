@@ -374,6 +374,11 @@ class Bezier:
         with open(SAVE_PATH + name + ".track", "wb") as file:
             pickle.dump(self, file)
 
+    @staticmethod
+    def load(name):
+        with open(SAVE_PATH + name + ".track", "rb") as file:
+            return pickle.load(file)
+
 
 class SturmSequence:
     """
