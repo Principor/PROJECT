@@ -35,6 +35,8 @@ class TrackEditor:
         self.canvas.bind('<ButtonRelease 1>', self.left_mouse_release)
         self.canvas.bind('<Button 3>', self.right_mouse_press)
 
+        self.name = ""
+
         self.bezier = None
         self.reset_track()
 
@@ -148,14 +150,18 @@ class TrackEditor:
         self.root.after(0, self.render)
 
     def save(self):
-        name = askstring("Save", "What do you want to save this as?")
-        if name:
-            self.bezier.save(name)
+        self.name = askstring("Save", "What do you want to save this as?", initialvalue=self.name)
+        if not self.name:
+            return
+        if self.name in Bezier.list_saves():
+            if not askyesno("Overwrite", "A track with this name exists, are you sure you want to overwrite it?"):
+                return
+        self.bezier.save(self.name)
 
     def load(self):
-        name = askstring("Save", "What do you want to load?")
-        if name:
-            self.bezier = Bezier.load(name)
+        self.name = askstring("Save", "What do you want to load?")
+        if self.name:
+            self.bezier = Bezier.load(self.name)
 
     def clear(self):
         if askyesno("Clear", "Are you sure you want to clear the track?"):

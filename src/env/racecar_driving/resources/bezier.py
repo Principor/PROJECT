@@ -1,4 +1,6 @@
+import glob
 import math
+import os
 import pickle
 
 import pybullet as p
@@ -7,6 +9,7 @@ from racecar_driving.resources.util import Vector2
 
 
 SAVE_PATH = "..\\tracks\\"
+EXTENSION = ".track"
 
 
 def get_length(a, b, c, d):
@@ -371,13 +374,23 @@ class Bezier:
         self.num_segments += 1
 
     def save(self, name):
-        with open(SAVE_PATH + name + ".track", "wb") as file:
+        with open(Bezier.get_path(name), "wb") as file:
             pickle.dump(self, file)
 
     @staticmethod
     def load(name):
-        with open(SAVE_PATH + name + ".track", "rb") as file:
+        with open(Bezier.get_path(name), "rb") as file:
             return pickle.load(file)
+
+    @staticmethod
+    def list_saves():
+        path = os.getcwd() + "\\" + SAVE_PATH
+        files = os.listdir(path)
+        return [file[:-len(EXTENSION)] for file in files if file[-len(EXTENSION):] == EXTENSION]
+
+    @staticmethod
+    def get_path(name):
+        return SAVE_PATH + name + EXTENSION
 
     def mirror(self):
         for point_index in range(self.num_points):
