@@ -1,5 +1,6 @@
 import time
 from tkinter import Tk, Canvas, Button, Frame, LEFT
+from tkinter.messagebox import askyesno
 from tkinter.simpledialog import askstring
 
 from racecar_driving.resources.bezier import Bezier
@@ -34,17 +35,17 @@ class TrackEditor:
         self.canvas.bind('<ButtonRelease 1>', self.left_mouse_release)
         self.canvas.bind('<Button 3>', self.right_mouse_press)
 
-        self.bezier = Bezier(
-            Vector2(-40, -40), Vector2(-40, -20), Vector2(-40, 20), Vector2(-40, 40), Vector2(-40, 70), Vector2(40, 70),
-            Vector2(40, 40), Vector2(40, 20), Vector2(40, -20), Vector2(40, -40), Vector2(40, -70), Vector2(-40, -70),
-        )
+        self.bezier = None
+        self.reset_track()
 
         self.button_frame = Frame(self.root)
         self.button_frame.pack()
         self.save_button = Button(self.button_frame, text="Save", command=self.save)
         self.load_button = Button(self.button_frame, text="Load", command=self.load)
+        self.clear_button = Button(self.button_frame, text="Clear", command=self.clear)
         self.save_button.pack(side=LEFT)
         self.load_button.pack(side=LEFT)
+        self.clear_button.pack(side=LEFT)
 
         self.render()
         self.root.mainloop()
@@ -155,6 +156,16 @@ class TrackEditor:
         name = askstring("Save", "What do you want to load?")
         if name:
             self.bezier = Bezier.load(name)
+
+    def clear(self):
+        if askyesno("Clear", "Are you sure you want to clear the track?"):
+            self.reset_track()
+
+    def reset_track(self):
+        self.bezier = Bezier(
+            Vector2(-40, -40), Vector2(-40, -20), Vector2(-40, 20), Vector2(-40, 40), Vector2(-40, 70), Vector2(40, 70),
+            Vector2(40, 40), Vector2(40, 20), Vector2(40, -20), Vector2(40, -40), Vector2(40, -70), Vector2(-40, -70),
+        )
 
 
 if __name__ == '__main__':
