@@ -75,6 +75,7 @@ class RacecarDrivingEnv(gym.Env):
         self.transform_tracks = transform_tracks
 
         self.bezier = None
+        self.debug_lines = []
 
         self.previous_progress = 0
         self.segment_index = 0
@@ -138,7 +139,8 @@ class RacecarDrivingEnv(gym.Env):
         :return: observation
         """
 
-        #Clear lines here?
+        for line in self.debug_lines:
+            p.removeUserDebugItem(line, physicsClientId=self.client)
 
         self.bezier = Bezier.load(random.choice(self.track_list))
         if self.transform_tracks:
@@ -147,7 +149,8 @@ class RacecarDrivingEnv(gym.Env):
             if random.choice([True, False]):
                 self.bezier.reverse()
 
-        # Draw lines here
+        if self.gui:
+            self.debug_lines = self.bezier.draw_lines(self.client, TRACK_WIDTH)
 
         self._output_telemetry()
         self.telemetry = []

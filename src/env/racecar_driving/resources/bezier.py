@@ -1,4 +1,3 @@
-import glob
 import math
 import os
 import pickle
@@ -6,7 +5,6 @@ import pickle
 import pybullet as p
 
 from racecar_driving.resources.util import Vector2
-
 
 SAVE_PATH = "..\\tracks\\"
 EXTENSION = ".track"
@@ -178,6 +176,7 @@ class Bezier:
 
     :param args: Points on the spline
     """
+
     def __init__(self, *args):
         self.control_points = list(args)
         self.num_points = len(self.control_points)
@@ -218,6 +217,7 @@ class Bezier:
         :param client: The client to draw in
         :param track_width: The width of the track
         """
+
         centre_points = [self.get_segment_point(0, 0)]
         for segment in range(self.num_segments):
             centre_points += split_curve_recursive(*tuple(self.get_segment_points(segment)))
@@ -225,21 +225,24 @@ class Bezier:
         left_points, right_points = [], []
         for i in range(num_points):
             mid_point = centre_points[i]
-            direction = (centre_points[(i+1) % num_points] - centre_points[i-1]).normalised()
+            direction = (centre_points[(i + 1) % num_points] - centre_points[i - 1]).normalised()
             offset = direction.rotate_90() * (track_width / 2)
             left_points.append(mid_point - offset)
             right_points.append(mid_point + offset)
 
+        lines = []
         for points in [left_points, right_points]:
             previous_point = points[-1].make_3d(0.1)
             for point in points:
                 current_point = point.make_3d(0.1)
-                p.addUserDebugLine(previous_point.tuple(),
-                                   current_point.tuple(),
-                                   lineColorRGB=(1, 0, 0),
-                                   lineWidth=2,
-                                   physicsClientId=client)
+                line = p.addUserDebugLine(previous_point.tuple(),
+                                          current_point.tuple(),
+                                          lineColorRGB=(1, 0, 0),
+                                          lineWidth=2,
+                                          physicsClientId=client)
+                lines.append(line)
                 previous_point = current_point
+        return lines
 
     def get_curve_point(self, segment_index, t):
         """
@@ -345,7 +348,7 @@ class Bezier:
         elif point_index % 3 == 2:
             point_index += 1
         if point_index > 0:
-            self.control_points = self.control_points[:point_index-1] + self.control_points[point_index+2:]
+            self.control_points = self.control_points[:point_index - 1] + self.control_points[point_index + 2:]
         else:
             print("Tricky one")
             self.control_points = self.control_points[-3:-1] + self.control_points[2:-3]
@@ -408,6 +411,7 @@ class SturmSequence:
 
     :param args: Coefficients of the polynomial to solve
     """
+
     def __init__(self, *args):
 
         self.degree = len(args) - 1
