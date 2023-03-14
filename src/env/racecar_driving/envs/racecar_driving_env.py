@@ -71,17 +71,7 @@ class RacecarDrivingEnv(gym.Env):
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
 
-        self.bezier = Bezier(
-            Vector2(-114.67, 73.08), Vector2(-131.89, 89.42), Vector2(-103.53, 115.41), Vector2(-86.17, 100.00),
-            Vector2(-73.36, 88.62), Vector2(-60.55, 77.24), Vector2(-47.74, 65.87), Vector2(-28.08, 48.42),
-            Vector2(-15.36, 85.73), Vector2(3.95, 75.28), Vector2(24.56, 64.11), Vector2(59.82, 7.75),
-            Vector2(74.23, -3.90), Vector2(89.52, -16.26), Vector2(119.91, -8.10), Vector2(128.87, -25.71),
-            Vector2(135.91, -39.54), Vector2(141.08, -87.25), Vector2(117.49, -87.50), Vector2(46.57, -88.24),
-            Vector2(-24.34, -88.99),  Vector2(-95.26, -89.73), Vector2(-134.60, -90.14), Vector2(-99.41, -28.48),
-            Vector2(-66.72, -46.84), Vector2(-13.31, -76.84), Vector2(13.68, -48.74), Vector2(-1.46, -34.37),
-            Vector2(-39.20, 1.45), Vector2(-76.93, 37.26)
-        )
-        self.bezier.draw_lines(self.client, TRACK_WIDTH)
+        self.bezier = None
 
         self.previous_progress = 0
         self.segment_index = 0
@@ -144,6 +134,17 @@ class RacecarDrivingEnv(gym.Env):
         :param options:  None
         :return: observation
         """
+
+        #Clear lines here?
+
+        self.bezier = Bezier.load(random.choice(["0", "1", "2", "3", "4"]))
+        if random.choice([True, False]):
+            self.bezier.mirror()
+        if random.choice([True, False]):
+            self.bezier.reverse()
+
+        # Draw lines here
+
         self._output_telemetry()
         self.telemetry = []
 

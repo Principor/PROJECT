@@ -379,6 +379,15 @@ class Bezier:
         with open(SAVE_PATH + name + ".track", "rb") as file:
             return pickle.load(file)
 
+    def mirror(self):
+        for point_index in range(self.num_points):
+            point = self.control_points[point_index]
+            x, y = point.tuple()
+            self.control_points[point_index] = Vector2(-x, y)
+
+    def reverse(self):
+        self.control_points = self.control_points[0:1] + self.control_points[-1:0:-1]
+
 
 class SturmSequence:
     """
