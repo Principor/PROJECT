@@ -31,7 +31,7 @@ class RacecarDrivingEnv(gym.Env):
         'render_modes': ['human'],
     }
 
-    def __init__(self, gui=False, random_start=True, save_telemetry=False):
+    def __init__(self, gui=False, random_start=True, save_telemetry=False, track_list=None, transform_tracks=True):
         self.action_space = gym.spaces.box.Box(
             low=np.array([-1, -1], dtype=np.float64),
             high=np.array([1, 1], dtype=np.float64)
@@ -70,6 +70,9 @@ class RacecarDrivingEnv(gym.Env):
 
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
+
+        self.track_list = track_list if track_list else Bezier.list_saves()
+        self.transform_tracks = transform_tracks
 
         self.bezier = None
 
@@ -137,11 +140,12 @@ class RacecarDrivingEnv(gym.Env):
 
         #Clear lines here?
 
-        self.bezier = Bezier.load(random.choice(["0", "1", "2", "3", "4"]))
-        if random.choice([True, False]):
-            self.bezier.mirror()
-        if random.choice([True, False]):
-            self.bezier.reverse()
+        self.bezier = Bezier.load(random.choice(self.track_list))
+        if self.transform_tracks:
+            if random.choice([True, False]):
+                self.bezier.mirror()
+            if random.choice([True, False]):
+                self.bezier.reverse()
 
         # Draw lines here
 

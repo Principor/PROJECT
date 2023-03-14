@@ -233,7 +233,8 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0') for _ in range(NUM_ENVS)])
+    track_list = [str(i) for i in range(5)]
+    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', track_list=track_list) for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()
