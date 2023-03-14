@@ -40,19 +40,25 @@ class TrackEditor:
         self.bezier = None
         self.reset_track()
 
+        self.show_points = True
+
         self.button_frame = Frame(self.root)
         self.button_frame.pack()
         self.save_button = Button(self.button_frame, text="Save", command=self.save)
         self.load_button = Button(self.button_frame, text="Load", command=self.load)
         self.clear_button = Button(self.button_frame, text="Clear", command=self.clear)
+        self.visibility_button = Button(self.button_frame, text="Hide points", command=self.toggle_visibility)
         self.save_button.pack(side=LEFT)
         self.load_button.pack(side=LEFT)
         self.clear_button.pack(side=LEFT)
+        self.visibility_button.pack(side=LEFT)
 
         self.render()
         self.root.mainloop()
 
     def mouse_move(self, event):
+        if not self.show_points: return
+
         if self.moving_point:
             self.move_point(event.x, event.y)
         else:
@@ -60,6 +66,8 @@ class TrackEditor:
         self.prev_x, self.prev_y = event.x, event.y
 
     def left_mouse_press(self, event):
+        if not self.show_points: return
+
         if self.selected_point != -1:
             self.moving_point = True
         if self.selected_line != -1:
@@ -69,9 +77,13 @@ class TrackEditor:
             self.selected_line = -1
 
     def left_mouse_release(self, event):
+        if not self.show_points: return
+
         self.moving_point = False
 
     def right_mouse_press(self, event):
+        if not self.show_points: return
+
         if self.selected_point != -1 and not self.moving_point:
             self.bezier.delete_point(self.selected_point)
             self.selected_point = -1
@@ -110,13 +122,14 @@ class TrackEditor:
         self.canvas.delete('all')
 
         # Draw control lines
-        for segment_index in range(self.bezier.num_segments):
-            for point_index in range(3):
-                point0 = self.bezier.get_segment_point(segment_index, point_index)
-                x0, y0 = world_space_to_screen_space(point0)
-                point1 = self.bezier.get_segment_point(segment_index, point_index + 1)
-                x1, y1 = world_space_to_screen_space(point1)
-                self.canvas.create_line(x0, y0, x1, y1, dash=(3,))
+        if self.show_points:
+            for segment_index in range(self.bezier.num_segments):
+                for point_index in range(3):
+                    point0 = self.bezier.get_segment_point(segment_index, point_index)
+                    x0, y0 = world_space_to_screen_space(point0)
+                    point1 = self.bezier.get_segment_point(segment_index, point_index + 1)
+                    x1, y1 = world_space_to_screen_space(point1)
+                    self.canvas.create_line(x0, y0, x1, y1, dash=(3,))
 
         # Draw curve
         for segment_index in range(self.bezier.num_segments):
@@ -135,18 +148,19 @@ class TrackEditor:
                 prev_x, prev_y = cur_x, cur_y
 
         # Draw control points
-        for segment_index in range(self.bezier.num_segments):
-            for point_index in range(3):
-                point0 = self.bezier.get_segment_point(segment_index, point_index)
-                x0, y0 = world_space_to_screen_space(point0)
-                radius = 7
-                if self.selected_point == segment_index * 3 + point_index:
-                    colour = 'yellow'
-                elif point_index == 0:
-                    colour = 'red'
-                else:
-                    colour = 'black'
-                self.canvas.create_oval(x0 - radius, y0 - radius, x0 + radius, y0 + radius, fill=colour)
+        if self.show_points:
+            for segment_index in range(self.bezier.num_segments):
+                for point_index in range(3):
+                    point0 = self.bezier.get_segment_point(segment_index, point_index)
+                    x0, y0 = world_space_to_screen_space(point0)
+                    radius = 7
+                    if self.selected_point == segment_index * 3 + point_index:
+                        colour = 'yellow'
+                    elif point_index == 0:
+                        colour = 'red'
+                    else:
+                        colour = 'black'
+                    self.canvas.create_oval(x0 - radius, y0 - radius, x0 + radius, y0 + radius, fill=colour)
         self.root.after(0, self.render)
 
     def save(self):
@@ -172,6 +186,17 @@ class TrackEditor:
             Vector2(-40, -40), Vector2(-40, -20), Vector2(-40, 20), Vector2(-40, 40), Vector2(-40, 70), Vector2(40, 70),
             Vector2(40, 40), Vector2(40, 20), Vector2(40, -20), Vector2(40, -40), Vector2(40, -70), Vector2(-40, -70),
         )
+
+    def toggle_visibility(self):
+        if self.show_points:
+            self.show_points = False
+            self.selected_point = -1
+            self.selected_line = -1
+            self.moving_point = False
+            self.visibility_button.config(text="Show points")
+        else:
+            self.show_points = True
+            self.visibility_button.config(text="Hide points")
 
 
 if __name__ == '__main__':
