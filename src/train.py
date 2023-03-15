@@ -12,10 +12,10 @@ from model import Model, StateMaskType, state_to_tensor
 import racecar_driving
 
 # Parameters
-NUM_UPDATES = 150
+NUM_UPDATES = 50
 NUM_ENVS = 4
-NUM_STEPS = 1024
-BATCH_SIZE = 128
+NUM_STEPS = 8192
+BATCH_SIZE = 2048
 SEQUENCE_LENGTH = 64
 
 NUM_EPOCHS = 10
@@ -28,10 +28,10 @@ DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 LOG_FREQUENCY = 5
-RUN_NAME = "lstm_asymmetric"
 
-RECURRENT_LAYERS = True
-STATE_MASK_TYPE = StateMaskType.ACTOR_STATE_MASK
+RUN_NAME = "lstm_asymmetric"
+RECURRENT_LAYERS = False
+STATE_MASK_TYPE = StateMaskType.NO_STATE_MASK
 CAR_INDEX = -1
 
 
@@ -105,7 +105,7 @@ class Agent:
         :return: Chosen action vector
         """
         self.actor_hidden_memory.append(self.model.actor_lstm_state[0])
-        self.actor_cell_memory.append(self.model.actor_lstm_state[1]) 
+        self.actor_cell_memory.append(self.model.actor_lstm_state[1])
         self.critic_hidden_memory.append(self.model.critic_lstm_state[0])
         self.critic_cell_memory.append(self.model.critic_lstm_state[1])
 
@@ -278,7 +278,8 @@ def train():
     """
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=CAR_INDEX) for _ in range(NUM_ENVS)])
+    track_list = None
+    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=CAR_INDEX, track_list=track_list) for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()

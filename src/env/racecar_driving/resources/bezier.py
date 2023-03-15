@@ -1,8 +1,13 @@
 import math
+import os
+import pickle
 
 import pybullet as p
 
 from racecar_driving.resources.util import Vector2
+
+SAVE_PATH = "..\\tracks\\"
+EXTENSION = ".track"
 
 
 def get_length(a, b, c, d):
@@ -171,8 +176,9 @@ class Bezier:
 
     :param args: Points on the spline
     """
+
     def __init__(self, *args):
-        self.control_points = args
+        self.control_points = list(args)
         self.num_points = len(self.control_points)
         self.num_segments = self.num_points // 3
 
@@ -211,6 +217,7 @@ class Bezier:
         :param client: The client to draw in
         :param track_width: The width of the track
         """
+
         centre_points = [self.get_segment_point(0, 0)]
         for segment in range(self.num_segments):
             centre_points += split_curve_recursive(*tuple(self.get_segment_points(segment)))
@@ -218,21 +225,24 @@ class Bezier:
         left_points, right_points = [], []
         for i in range(num_points):
             mid_point = centre_points[i]
-            direction = (centre_points[(i+1) % num_points] - centre_points[i-1]).normalised()
+            direction = (centre_points[(i + 1) % num_points] - centre_points[i - 1]).normalised()
             offset = direction.rotate_90() * (track_width / 2)
             left_points.append(mid_point - offset)
             right_points.append(mid_point + offset)
 
+        lines = []
         for points in [left_points, right_points]:
             previous_point = points[-1].make_3d(0.1)
             for point in points:
                 current_point = point.make_3d(0.1)
-                p.addUserDebugLine(previous_point.tuple(),
-                                   current_point.tuple(),
-                                   lineColorRGB=(1, 0, 0),
-                                   lineWidth=2,
-                                   physicsClientId=client)
+                line = p.addUserDebugLine(previous_point.tuple(),
+                                          current_point.tuple(),
+                                          lineColorRGB=(1, 0, 0),
+                                          lineWidth=2,
+                                          physicsClientId=client)
+                lines.append(line)
                 previous_point = current_point
+        return lines
 
     def get_curve_point(self, segment_index, t):
         """
@@ -294,7 +304,7 @@ class Bezier:
     def get_distance_from_curve(self, point, segment_index):
 
         """
-        Estimate distance from a segment, and t of closest point
+        Estimate distance from a segment, and t of the closest point
 
         :param point: Point to find distance from
         :param segment_index: The index of the segment
@@ -303,8 +313,142 @@ class Bezier:
         return get_distance_from_curve(point, *self.get_segment_points(segment_index))
 
     def get_direction(self, segment_index, t):
+
         lerp_points = get_lerp_points(*self.get_segment_points(segment_index), t)
         return (lerp_points[2][1] - lerp_points[2][0]).normalised()
+
+    def move_point(self, point_index, x_offset, y_offset):
+        """
+        Move a point to a new location
+
+        :param point_index: The index of the target point
+        :param x_offset: The amount to move by on the x-axis
+        :param y_offset: The amount to move by on the y-axis
+        """
+        offset = Vector2(x_offset, y_offset)
+        self.control_points[point_index] += offset
+        # The start and end of each segment should have control points that form a straight line, so that direction of
+        # curve is continuous
+        if point_index % 3 == 0:
+            self.control_points[(point_index - 1) % self.num_points] += offset
+            self.control_points[(point_index + 1) % self.num_points] += offset
+        else:
+            if point_index % 3 == 1:
+                mid_index = (point_index - 1) % self.num_points
+                opp_index = (point_index - 2) % self.num_points
+            else:
+                mid_index = (point_index + 1) % self.num_points
+                opp_index = (point_index + 2) % self.num_points
+
+            cur_point = self.control_points[point_index]
+            mid_point = self.control_points[mid_index]
+            opp_point = self.control_points[opp_index]
+
+            opp_dir = (mid_point - cur_point).normalised()
+            opp_dist = (opp_point - mid_point).magnitude()
+            self.control_points[opp_index] = mid_point + opp_dir * opp_dist
+
+    def delete_point(self, point_index):
+        """
+        Remove a point and its associated neighbours
+
+        :param point_index: The target point
+        """
+        if self.num_segments == 2:
+            return
+        if point_index % 3 == 1:
+            point_index -= 1
+        elif point_index % 3 == 2:
+            point_index += 1
+        if point_index > 0:
+            self.control_points = self.control_points[:point_index - 1] + self.control_points[point_index + 2:]
+        else:
+            print("Tricky one")
+            self.control_points = self.control_points[-3:-1] + self.control_points[2:-3]
+
+        self.num_points -= 3
+        self.num_segments -= 1
+
+    def split_segment(self, point):
+        """
+        Add new points to split a segment in two at a specified point
+
+        :param point: The closest point to the split location
+        """
+        closest_segment = 0
+        min_dist = float('inf')
+        closest_t = 0
+        for segment_index in range(self.num_segments):
+            t, dist = self.get_distance_from_curve(point, segment_index)
+            if dist < min_dist:
+                closest_segment = segment_index
+                min_dist = dist
+                closest_t = t
+        new_curves = split_at_point(*self.get_segment_points(closest_segment), closest_t)
+        self.control_points[closest_segment * 3 + 1] = new_curves[0][1]
+        self.control_points[closest_segment * 3 + 2] = new_curves[0][2]
+        self.control_points.insert(closest_segment * 3 + 3, new_curves[1][2])
+        self.control_points.insert(closest_segment * 3 + 3, new_curves[1][1])
+        self.control_points.insert(closest_segment * 3 + 3, new_curves[1][0])
+
+        self.num_points += 3
+        self.num_segments += 1
+
+    def save(self, name):
+        """
+        Save a model
+
+        :param name: The name to give the saved model
+        """
+        with open(Bezier.get_path(name), "wb") as file:
+            pickle.dump(self, file)
+
+    @staticmethod
+    def load(name):
+        """
+        Load a model
+
+        :param name: The name of the model to load
+        :return: The loaded model
+        """
+        with open(Bezier.get_path(name), "rb") as file:
+            return pickle.load(file)
+
+    @staticmethod
+    def list_saves():
+        """
+        List the names of all saved tracks
+
+        :return: The list of save names
+        """
+        path = os.getcwd() + "\\" + SAVE_PATH
+        files = os.listdir(path)
+        return [file[:-len(EXTENSION)] for file in files if file[-len(EXTENSION):] == EXTENSION]
+
+    @staticmethod
+    def get_path(name):
+        """
+        Get the relative location of a save with a specific name
+
+        :param name: The name of the save
+        :return: The location of the save
+        """
+        return SAVE_PATH + name + EXTENSION
+
+    def mirror(self):
+        """
+        Mirror track
+        """
+        for point_index in range(self.num_points):
+            point = self.control_points[point_index]
+            x, y = point.tuple()
+            self.control_points[point_index] = Vector2(-x, y)
+
+    def reverse(self):
+        """
+        Reverse track
+        """
+        self.control_points = self.control_points[0:1] + self.control_points[-1:0:-1]
 
 
 class SturmSequence:
@@ -313,6 +457,7 @@ class SturmSequence:
 
     :param args: Coefficients of the polynomial to solve
     """
+
     def __init__(self, *args):
 
         self.degree = len(args) - 1

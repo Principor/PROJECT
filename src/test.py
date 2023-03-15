@@ -16,7 +16,8 @@ if __name__ == '__main__':
     Test the trained model
     """
 
-    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=GUI, car_index=CAR_INDEX)])
+    track_list = ["mitchell"]
+    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=GUI, car_index=CAR_INDEX, track_list=track_list, transform_tracks=False)])
     # Load normaliser generated during training so inputs match
     env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
     env.training = False
