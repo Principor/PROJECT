@@ -1,4 +1,5 @@
 import time
+import tkinter
 from tkinter import Tk, Canvas, Button, Frame, LEFT
 from tkinter.messagebox import askyesno, showerror
 from tkinter.simpledialog import askstring
@@ -9,14 +10,30 @@ from racecar_driving.envs.racecar_driving_env import TRACK_WIDTH
 
 
 def world_space_to_screen_space(vector):
+    """
+    Convert a Vector2 to tuple representing screen space coordinates
+
+    :param vector: The vector representing the position
+    :return: The tuple representing the screen location
+    """
     return (Vector2(300, 300) + vector * 2).tuple()
 
 
 def screen_space_to_world_space(x, y):
+    """
+    Convert a tuple to a Vector2 representing the world position
+
+    :param x: The screen x location
+    :param y: The screen y location
+    :return: The Vector2 of the world position
+    """
     return Vector2(x - 300, y - 300) / 2
 
 
 class TrackEditor:
+    """
+    Window for editing tracks
+    """
     def __init__(self):
         self.root = Tk()
         self.root.geometry('600x625')
@@ -58,7 +75,13 @@ class TrackEditor:
         self.root.mainloop()
 
     def mouse_move(self, event):
-        if not self.show_points: return
+        """
+        Callback for mouse movement
+
+        :param event: The movement event
+        """
+        if not self.show_points:
+            return
 
         if self.moving_point:
             self.move_point(event.x, event.y)
@@ -67,6 +90,11 @@ class TrackEditor:
         self.prev_x, self.prev_y = event.x, event.y
 
     def left_mouse_press(self, event):
+        """
+        Call back for pressing the left mouse button
+
+        :param event: The press event
+        """
         if not self.show_points: return
 
         if self.selected_point != -1:
@@ -77,22 +105,42 @@ class TrackEditor:
             self.moving_point = True
             self.selected_line = -1
 
-    def left_mouse_release(self, event):
-        if not self.show_points: return
+    def left_mouse_release(self, _):
+        """
+        Call back for releasing the left mouse button
+        """
+        if not self.show_points:
+            return
 
         self.moving_point = False
 
-    def right_mouse_press(self, event):
-        if not self.show_points: return
+    def right_mouse_press(self, _):
+        """
+        Call back for pressing the right mouse button
+        """
+        if not self.show_points:
+            return
 
         if self.selected_point != -1 and not self.moving_point:
             self.bezier.delete_point(self.selected_point)
             self.selected_point = -1
 
     def move_point(self, mouse_x, mouse_y):
+        """
+        Move a control point
+
+        :param mouse_x: The new x position of the mouse
+        :param mouse_y: The new y position of the mouse
+        """
         self.bezier.move_point(self.selected_point, (mouse_x-self.prev_x)/2, (mouse_y-self.prev_y)/2)
 
     def handle_selection(self, mouse_x, mouse_y):
+        """
+        Detect which control point or line the mouse is currently over
+
+        :param mouse_x: The x position of the mouse
+        :param mouse_y: The y position of the mouse
+        """
         self.selected_point = -1
         self.selected_line = -1
 
@@ -119,6 +167,10 @@ class TrackEditor:
             self.selected_line = -1
 
     def render(self):
+        """
+        Draw control points and track on the canvas
+        :return:
+        """
         self.canvas.update()
         self.canvas.delete('all')
 
@@ -169,6 +221,9 @@ class TrackEditor:
         self.root.after(0, self.render)
 
     def save(self):
+        """
+        Save the current track
+        """
         self.name = askstring("Save", "What do you want to save this as?", initialvalue=self.name)
         if not self.name:
             return
@@ -178,6 +233,9 @@ class TrackEditor:
         self.bezier.save(self.name)
 
     def load(self):
+        """
+        Load a track
+        """
         self.name = askstring("Load", "What do you want to load?")
         if not self.name:
             showerror("Load", "Please enter a valid name")
@@ -187,16 +245,25 @@ class TrackEditor:
             self.bezier = Bezier.load(self.name)
 
     def clear(self):
+        """
+        Reset track to starting track
+        """
         if askyesno("Clear", "Are you sure you want to clear the track?"):
             self.reset_track()
 
     def reset_track(self):
+        """
+        Load the starting track
+        """
         self.bezier = Bezier(
             Vector2(-40, -40), Vector2(-40, -20), Vector2(-40, 20), Vector2(-40, 40), Vector2(-40, 70), Vector2(40, 70),
             Vector2(40, 40), Vector2(40, 20), Vector2(40, -20), Vector2(40, -40), Vector2(40, -70), Vector2(-40, -70),
         )
 
     def toggle_visibility(self):
+        """
+        Toggle the visibility of the control points
+        """
         if self.show_points:
             self.show_points = False
             self.selected_point = -1

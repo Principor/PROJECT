@@ -313,10 +313,18 @@ class Bezier:
         return get_distance_from_curve(point, *self.get_segment_points(segment_index))
 
     def get_direction(self, segment_index, t):
+
         lerp_points = get_lerp_points(*self.get_segment_points(segment_index), t)
         return (lerp_points[2][1] - lerp_points[2][0]).normalised()
 
     def move_point(self, point_index, x_offset, y_offset):
+        """
+        Move a point to a new location
+
+        :param point_index: The index of the target point
+        :param x_offset: The amount to move by on the x-axis
+        :param y_offset: The amount to move by on the y-axis
+        """
         offset = Vector2(x_offset, y_offset)
         self.control_points[point_index] += offset
         # The start and end of each segment should have control points that form a straight line, so that direction of
@@ -341,6 +349,11 @@ class Bezier:
             self.control_points[opp_index] = mid_point + opp_dir * opp_dist
 
     def delete_point(self, point_index):
+        """
+        Remove a point and its associated neighbours
+
+        :param point_index: The target point
+        """
         if self.num_segments == 2:
             return
         if point_index % 3 == 1:
@@ -357,6 +370,11 @@ class Bezier:
         self.num_segments -= 1
 
     def split_segment(self, point):
+        """
+        Add new points to split a segment in two at a specified point
+
+        :param point: The closest point to the split location
+        """
         closest_segment = 0
         min_dist = float('inf')
         closest_t = 0
@@ -377,31 +395,59 @@ class Bezier:
         self.num_segments += 1
 
     def save(self, name):
+        """
+        Save a model
+
+        :param name: The name to give the saved model
+        """
         with open(Bezier.get_path(name), "wb") as file:
             pickle.dump(self, file)
 
     @staticmethod
     def load(name):
+        """
+        Load a model
+
+        :param name: The name of the model to load
+        :return: The loaded model
+        """
         with open(Bezier.get_path(name), "rb") as file:
             return pickle.load(file)
 
     @staticmethod
     def list_saves():
+        """
+        List the names of all saved tracks
+
+        :return: The list of save names
+        """
         path = os.getcwd() + "\\" + SAVE_PATH
         files = os.listdir(path)
         return [file[:-len(EXTENSION)] for file in files if file[-len(EXTENSION):] == EXTENSION]
 
     @staticmethod
     def get_path(name):
+        """
+        Get the relative location of a save with a specific name
+
+        :param name: The name of the save
+        :return: The location of the save
+        """
         return SAVE_PATH + name + EXTENSION
 
     def mirror(self):
+        """
+        Mirror track
+        """
         for point_index in range(self.num_points):
             point = self.control_points[point_index]
             x, y = point.tuple()
             self.control_points[point_index] = Vector2(-x, y)
 
     def reverse(self):
+        """
+        Reverse track
+        """
         self.control_points = self.control_points[0:1] + self.control_points[-1:0:-1]
 
 
