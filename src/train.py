@@ -11,10 +11,10 @@ from model import Model
 import racecar_driving
 
 # Parameters
-NUM_UPDATES = 150
+NUM_UPDATES = 50
 NUM_ENVS = 4
-NUM_STEPS = 1024
-BATCH_SIZE = 128
+NUM_STEPS = 8192
+BATCH_SIZE = 2048
 
 NUM_EPOCHS = 10
 EPSILON = 0.2
@@ -28,7 +28,7 @@ MAX_GRAD_NORM = 0.5
 HIDDEN_SIZE = 128
 
 LOG_FREQUENCY = 5
-RUN_NAME = "ppo"
+RUN_NAME = "batch_size_2048"
 
 
 def normalise(x):
@@ -233,7 +233,7 @@ def train():
     """
 
     # Vectorise and wrap environment
-    track_list = [str(i) for i in range(5)]
+    track_list = None
     envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', track_list=track_list) for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)

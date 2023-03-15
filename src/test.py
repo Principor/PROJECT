@@ -18,7 +18,7 @@ if __name__ == '__main__':
     env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=True, track_list=track_list, transform_tracks=False)])
     env = VecNormalize.load("../models/normaliser", env)    # Load normaliser generated during training so inputs match
     actor = Model(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE)
-    actor.load_state_dict(torch.load("../models/ppo/model.pth"))
+    actor.load_state_dict(torch.load("../models/batch_size_2048/model.pth"))
 
     observation = env.reset()
     for _ in range(NUM_STEPS):
