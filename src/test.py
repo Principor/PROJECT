@@ -14,7 +14,8 @@ if __name__ == '__main__':
     Test the trained model
     """
 
-    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=True, track_list=["1"], transform_tracks=False)])
+    track_list = ["mitchell"]
+    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=True, track_list=track_list, transform_tracks=False)])
     env = VecNormalize.load("../models/normaliser", env)    # Load normaliser generated during training so inputs match
     actor = Model(env.observation_space.shape[0], env.action_space.shape[0], HIDDEN_SIZE)
     actor.load_state_dict(torch.load("../models/ppo/model.pth"))

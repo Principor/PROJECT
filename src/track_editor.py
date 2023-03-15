@@ -5,6 +5,7 @@ from tkinter.simpledialog import askstring
 
 from racecar_driving.resources.bezier import Bezier
 from racecar_driving.resources.util import Vector2
+from racecar_driving.envs.racecar_driving_env import TRACK_WIDTH
 
 
 def world_space_to_screen_space(vector):
@@ -21,7 +22,7 @@ class TrackEditor:
         self.root.geometry('600x625')
         self.root.resizable(False, False)
 
-        self.handle_radius = 7
+        self.handle_radius = TRACK_WIDTH / 2
 
         self.prev_x, self.prev_y = 0, 0
         self.selected_point = -1
@@ -133,7 +134,7 @@ class TrackEditor:
 
         # Draw curve
         for segment_index in range(self.bezier.num_segments):
-            t_steps = 20
+            t_steps = int(self.bezier.get_segment_length(segment_index) / 10)
             start_point = self.bezier.get_curve_point(segment_index, 0)
             prev_x, prev_y = world_space_to_screen_space(start_point)
             for step in range(t_steps):
@@ -144,7 +145,10 @@ class TrackEditor:
                     colour = 'yellow'
                 else:
                     colour = 'blue'
-                self.canvas.create_line(prev_x, prev_y, cur_x, cur_y, fill=colour, width=3)
+                self.canvas.create_line(prev_x, prev_y, cur_x, cur_y, fill=colour, width=TRACK_WIDTH)
+                self.canvas.create_oval(prev_x-self.handle_radius, prev_y-self.handle_radius,
+                                        prev_x+self.handle_radius, prev_y+self.handle_radius,
+                                        fill=colour, outline="")
                 prev_x, prev_y = cur_x, cur_y
 
         # Draw control points
@@ -153,14 +157,15 @@ class TrackEditor:
                 for point_index in range(3):
                     point0 = self.bezier.get_segment_point(segment_index, point_index)
                     x0, y0 = world_space_to_screen_space(point0)
-                    radius = 7
                     if self.selected_point == segment_index * 3 + point_index:
                         colour = 'yellow'
                     elif point_index == 0:
                         colour = 'red'
                     else:
                         colour = 'black'
-                    self.canvas.create_oval(x0 - radius, y0 - radius, x0 + radius, y0 + radius, fill=colour)
+                    self.canvas.create_oval(x0 - self.handle_radius, y0 - self.handle_radius,
+                                            x0 + self.handle_radius, y0 + self.handle_radius,
+                                            fill=colour)
         self.root.after(0, self.render)
 
     def save(self):
