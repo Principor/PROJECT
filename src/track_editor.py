@@ -1,6 +1,6 @@
 import time
 from tkinter import Tk, Canvas, Button, Frame, LEFT
-from tkinter.messagebox import askyesno
+from tkinter.messagebox import askyesno, showerror
 from tkinter.simpledialog import askstring
 
 from racecar_driving.resources.bezier import Bezier
@@ -178,8 +178,12 @@ class TrackEditor:
         self.bezier.save(self.name)
 
     def load(self):
-        self.name = askstring("Save", "What do you want to load?")
-        if self.name:
+        self.name = askstring("Load", "What do you want to load?")
+        if not self.name:
+            showerror("Load", "Please enter a valid name")
+        elif self.name not in Bezier.list_saves():
+            showerror("Load", f"{self.name} could not be found")
+        else:
             self.bezier = Bezier.load(self.name)
 
     def clear(self):
