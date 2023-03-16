@@ -72,7 +72,7 @@ class RacecarDrivingEnv(gym.Env):
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
 
-        self.track_list = track_list if track_list else Bezier.list_saves()
+        self.track_list = track_list if track_list else Bezier.list_saves()[:-1]
         self.transform_tracks = transform_tracks
 
         self.bezier = None
@@ -149,6 +149,7 @@ class RacecarDrivingEnv(gym.Env):
                 self.bezier.mirror()
             if random.choice([True, False]):
                 self.bezier.reverse()
+            self.bezier.add_noise()
 
         if self.gui:
             self.debug_lines = self.bezier.draw_lines(self.client, TRACK_WIDTH)

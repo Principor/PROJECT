@@ -2,6 +2,7 @@ import math
 import os
 import pickle
 
+import numpy as np
 import pybullet as p
 
 from racecar_driving.resources.util import Vector2
@@ -449,6 +450,10 @@ class Bezier:
         Reverse track
         """
         self.control_points = self.control_points[0:1] + self.control_points[-1:0:-1]
+
+    def add_noise(self, scale=5):
+        for point_index in range(self.num_segments):
+            self.move_point(point_index, np.random.normal(0, scale), np.random.normal(0, scale))
 
 
 class SturmSequence:
