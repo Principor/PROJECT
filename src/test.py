@@ -8,8 +8,8 @@ import racecar_driving
 # Parameters
 GUI = False
 NUM_EPISODES = 10
-CAR_INDEX = 3
-RUN_NAME = "lstm_asymmetric"
+CAR_INDEX = 0
+RUN_NAME = "ff"
 
 if __name__ == '__main__':
     """

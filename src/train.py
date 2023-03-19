@@ -28,10 +28,9 @@ DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 LOG_FREQUENCY = 5
-
-RUN_NAME = "lstm_asymmetric"
+RUN_NAME = "ff_mask"
 RECURRENT_LAYERS = False
-STATE_MASK_TYPE = StateMaskType.NO_STATE_MASK
+STATE_MASK_TYPE = StateMaskType.FULL_STATE_MASK
 CAR_INDEX = -1
 
 
@@ -272,17 +271,22 @@ class Agent:
         self.model.save_model(path + "/model.pth")
 
 
+def make_env():
+    track_list = None
+    return gym.make('RacecarDriving-v0', car_index=CAR_INDEX, track_list=track_list, transform_tracks=False)
+
+
 def train():
     """
     Train the model
     """
 
     # Vectorise and wrap environment
-    track_list = None
-    envs = SubprocVecEnv([lambda: gym.make('RacecarDriving-v0', car_index=CAR_INDEX, track_list=track_list) for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: make_env() for _ in range(NUM_ENVS)])
     envs = VecMonitor(envs)
     envs = VecNormalize(envs, gamma=GAMMA)
     print()
+    print(RUN_NAME)
 
     writer = SummaryWriter("../summaries/" + RUN_NAME)
 

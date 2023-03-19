@@ -66,7 +66,8 @@ class Car:
     :param orientation: The orientation to create  the car with
     """
 
-    def __init__(self, client, position, orientation, mass=100, wheelbase=3, track_width=2.2, com_y=-0.3, com_z=-0.3):
+    def __init__(self, client, position, orientation, mass=100, wheelbase=3, track_width=2.2, com_y=-0.3, com_z=-0.3,
+                 grip_factor=1.0):
         self.client = client
 
         self.mass = mass
@@ -74,6 +75,7 @@ class Car:
         self.track_width = track_width
         self.com_y = com_y
         self.com_z = com_z
+        self.grip_factor = grip_factor
 
         half_extents = (1, 2, 0.5)
         shape_shift = (0, -com_y, -com_z)
@@ -114,6 +116,7 @@ class Car:
                                front_weight * rollbar_scalar,
                                wheel_radius,
                                wheel_mass,
+                               self.grip_factor,
                                self.client)
         self.rear_axle = Axle(self,
                               -wheelbase / 2 - com_y,
@@ -125,6 +128,7 @@ class Car:
                               rear_weight * rollbar_scalar,
                               wheel_radius,
                               wheel_mass,
+                               self.grip_factor,
                               self.client)
 
         self.horsepower = 50
@@ -177,7 +181,7 @@ class Car:
         p.removeBody(self.body)
 
     def get_configuration(self):
-        return [self.mass, self.wheelbase, self.track_width, self.com_y, self.com_z]
+        return [self.grip_factor]
 
 class Axle:
     """
@@ -197,13 +201,13 @@ class Axle:
     """
 
     def __init__(self, car, axle_position, axle_width, axle_height, spring_length, spring_stiffness, damper_stiffness,
-                 rollbar_stiffness, wheel_radius, wheel_mass, client):
+                 rollbar_stiffness, wheel_radius, wheel_mass, grip_factor, client):
         self.car = car
 
         self.right_wheel = Wheel(car, util.Vector3(axle_width / 2, axle_position, axle_height), spring_length,
-                                 spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, client)
+                                 spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, grip_factor, client)
         self.left_wheel = Wheel(car, util.Vector3(-axle_width / 2, axle_position, axle_height), spring_length,
-                                spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, client)
+                                spring_stiffness, damper_stiffness, wheel_radius, wheel_mass, grip_factor, client)
         self.wheels = [self.left_wheel, self.right_wheel]
 
         self.rollbar_stiffness = rollbar_stiffness
@@ -281,7 +285,7 @@ class Wheel:
     """
 
     def __init__(self, car, start_position, max_spring_length, spring_stiffness, damper_stiffness, radius, mass,
-                 client):
+                 grip_factor, client):
         self.car = car
         self.start_position = start_position
         self.max_spring_length = max_spring_length
@@ -290,6 +294,8 @@ class Wheel:
 
         self.radius = radius
         self.mass = mass
+
+        self.grip_factor = grip_factor
 
         self.angular_velocity_prev = 0
         self.angular_velocity = 0
@@ -415,4 +421,4 @@ class Wheel:
             lat_force = -lat_speed * (reaction_force / 9.8) * 100
             lat_force = np.clip(lat_force, -max_lat_force, max_lat_force)
 
-        return long_force, lat_force
+        return long_force * self.grip_factor, lat_force * self.grip_factor

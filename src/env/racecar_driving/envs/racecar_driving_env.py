@@ -37,8 +37,8 @@ class RacecarDrivingEnv(gym.Env):
             high=np.array([1, 1], dtype=np.float64)
         )
         self.observation_space = gym.spaces.box.Box(
-            low=np.full(21, -np.inf),
-            high=np.full(21, np.inf),
+            low=np.full(17, -np.inf),
+            high=np.full(17, np.inf),
         )
 
         self.gui = gui
