@@ -7,6 +7,7 @@ import time
 import gym
 import numpy as np
 import pybullet as p
+from Box2D import b2World, b2EdgeShape
 
 from racecar_driving.resources.car_generator import CarGenerator
 from src.env.racecar_driving.resources.util import Vector2
@@ -78,8 +79,8 @@ class RacecarDrivingEnv(gym.Env):
         self.transform_tracks = transform_tracks
 
         self.bezier = None
-        self.track_lines = []
         self.debug_lines = []
+        self.box2d_world = None
 
         self.previous_progress = 0
         self.segment_index = 0
@@ -151,8 +152,15 @@ class RacecarDrivingEnv(gym.Env):
                 self.bezier.reverse()
             self.bezier.add_noise()
 
-        self.track_lines = self.bezier.get_lines(TRACK_WIDTH)
-        self._draw_lines()
+        track_lines = self.bezier.get_lines(TRACK_WIDTH)
+        self._draw_lines(track_lines)
+
+        self.box2d_world = b2World(gravity=(0, -10))
+        for start, end in track_lines:
+            self.box2d_world.CreateStaticBody(
+                shapes=b2EdgeShape(vertices=[start.get_xy().tuple(), end.get_xy().tuple()]),
+                position=(1, 0)
+            )
 
         self._output_telemetry()
         self.telemetry = []
@@ -188,12 +196,12 @@ class RacecarDrivingEnv(gym.Env):
         self._output_telemetry()
         p.disconnect(physicsClientId=self.client)
 
-    def _draw_lines(self):
+    def _draw_lines(self, track_lines):
         if not self.gui:
             return
         for line in self.debug_lines:
             p.removeUserDebugItem(line, physicsClientId=self.client)
-        for start, end in self.track_lines:
+        for start, end in track_lines:
             self.debug_lines.append(p.addUserDebugLine(
                 start.tuple(),
                 end.tuple(),
