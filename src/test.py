@@ -6,7 +6,7 @@ from model import Model, state_to_tensor
 import racecar_driving
 
 # Parameters
-GUI = False
+GUI = True
 NUM_EPISODES = 10
 CAR_INDEX = 0
 RUN_NAME = "ff"

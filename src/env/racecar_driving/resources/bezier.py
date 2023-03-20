@@ -3,7 +3,6 @@ import os
 import pickle
 
 import numpy as np
-import pybullet as p
 
 from racecar_driving.resources.util import Vector2
 
@@ -24,7 +23,7 @@ def get_length(a, b, c, d):
     return ((a.get_distance(b) + b.get_distance(c) + c.get_distance(d)) + a.get_distance(d)) / 2
 
 
-def split_curve_recursive(a, b, c, d, max_length=5):
+def split_curve_recursive(a, b, c, d, max_length=10):
     """
     Split a curve into sub-curves smaller than max_length
 
@@ -211,14 +210,7 @@ class Bezier:
         """
         return self.control_points[point_index % self.num_points]
 
-    def draw_lines(self, client, track_width):
-        """
-        Draw lines around the track limits in the debugger
-
-        :param client: The client to draw in
-        :param track_width: The width of the track
-        """
-
+    def get_lines(self, track_width):
         centre_points = [self.get_segment_point(0, 0)]
         for segment in range(self.num_segments):
             centre_points += split_curve_recursive(*tuple(self.get_segment_points(segment)))
@@ -236,12 +228,7 @@ class Bezier:
             previous_point = points[-1].make_3d(0.1)
             for point in points:
                 current_point = point.make_3d(0.1)
-                line = p.addUserDebugLine(previous_point.tuple(),
-                                          current_point.tuple(),
-                                          lineColorRGB=(1, 0, 0),
-                                          lineWidth=2,
-                                          physicsClientId=client)
-                lines.append(line)
+                lines.append((previous_point, current_point))
                 previous_point = current_point
         return lines
 

@@ -16,6 +16,7 @@ from src.env.racecar_driving.resources.bezier import Bezier
 TIME_STEP = 0.01
 SIM_STEPS = 10
 TRACK_WIDTH = 20
+MAX_RAY_LENGTH = 100
 
 
 class RacecarDrivingEnv(gym.Env):
@@ -31,7 +32,8 @@ class RacecarDrivingEnv(gym.Env):
         'render_modes': ['human'],
     }
 
-    def __init__(self, gui=False, random_start=True, save_telemetry=False, car_index=-1, track_list=None, transform_tracks=True):
+    def __init__(self, gui=False, random_start=True, save_telemetry=False, car_index=-1, track_list=None,
+                 transform_tracks=True):
         self.action_space = gym.spaces.box.Box(
             low=np.array([-1, -1], dtype=np.float64),
             high=np.array([1, 1], dtype=np.float64)
@@ -76,6 +78,7 @@ class RacecarDrivingEnv(gym.Env):
         self.transform_tracks = transform_tracks
 
         self.bezier = None
+        self.track_lines = []
         self.debug_lines = []
 
         self.previous_progress = 0
@@ -140,9 +143,6 @@ class RacecarDrivingEnv(gym.Env):
         :return: observation
         """
 
-        for line in self.debug_lines:
-            p.removeUserDebugItem(line, physicsClientId=self.client)
-
         self.bezier = Bezier.load(random.choice(self.track_list))
         if self.transform_tracks:
             if random.choice([True, False]):
@@ -151,8 +151,8 @@ class RacecarDrivingEnv(gym.Env):
                 self.bezier.reverse()
             self.bezier.add_noise()
 
-        if self.gui:
-            self.debug_lines = self.bezier.draw_lines(self.client, TRACK_WIDTH)
+        self.track_lines = self.bezier.get_lines(TRACK_WIDTH)
+        self._draw_lines()
 
         self._output_telemetry()
         self.telemetry = []
@@ -187,6 +187,20 @@ class RacecarDrivingEnv(gym.Env):
         """
         self._output_telemetry()
         p.disconnect(physicsClientId=self.client)
+
+    def _draw_lines(self):
+        if not self.gui:
+            return
+        for line in self.debug_lines:
+            p.removeUserDebugItem(line, physicsClientId=self.client)
+        for start, end in self.track_lines:
+            self.debug_lines.append(p.addUserDebugLine(
+                start.tuple(),
+                end.tuple(),
+                lineColorRGB=(1, 0, 0),
+                lineWidth=2,
+                physicsClientId=self.client
+            ))
 
     def _get_car_position(self):
         # Get current position of the car in 2D
