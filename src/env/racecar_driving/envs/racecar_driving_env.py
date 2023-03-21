@@ -7,7 +7,7 @@ import time
 import gym
 import numpy as np
 import pybullet as p
-from Box2D import b2World, b2EdgeShape
+from Box2D import b2World, b2EdgeShape, b2RayCastCallback, b2Vec2
 
 from racecar_driving.resources.car_generator import CarGenerator
 from src.env.racecar_driving.resources.util import Vector2
@@ -40,8 +40,8 @@ class RacecarDrivingEnv(gym.Env):
             high=np.array([1, 1], dtype=np.float64)
         )
         self.observation_space = gym.spaces.box.Box(
-            low=np.full(17, -np.inf),
-            high=np.full(17, np.inf),
+            low=np.full(16, -np.inf),
+            high=np.full(16, np.inf),
         )
 
         self.gui = gui
@@ -215,18 +215,35 @@ class RacecarDrivingEnv(gym.Env):
         return self.car.get_transform().position.get_xy()
 
     def _get_observation(self):
-        # Get the current observation: velocity of the car and positions of current and next segment control points,
-        # all in local space
-        car_position = self.car.get_transform().position
-        points = [self.velocity.make_3d()]
-        points += [self.bezier.get_segment_point(self.segment_index, i).make_3d() - car_position for i in range(7)]
         observation = []
-        car_inverse = self.car.get_transform().invert()
-        for point in points:
-            local = car_inverse.transform_direction(point).tuple()
-            observation.append(local[0])
-            observation.append(local[1])
+
+        car_transform = self.car.get_transform()
+
+        # Velocity
+        inverse_transform = self.car.get_transform().invert()
+        relative_velocity = inverse_transform.transform_direction(self.velocity.make_3d())
+        vel_x, vel_y = relative_velocity.get_xy().tuple()
+        observation += [vel_x, vel_y]
+
+        # LIDAR
+        side_angles = np.array([2.5, 5, 10, 15, 30, 60])
+        all_angles = np.concatenate((-side_angles[::-1], [0], side_angles))
+        all_angles = [math.radians(angle) for angle in all_angles]
+        forward = car_transform.transform_direction(Vector2(0, 1).make_3d())
+        ray_start = b2Vec2(*car_transform.position.get_xy().tuple())
+        x, y = forward.get_xy().tuple()
+        for theta in all_angles:
+            sin_theta = math.sin(theta)
+            cos_theta = math.cos(theta)
+            dir_x, dir_y = (x * cos_theta - y * sin_theta, x * sin_theta + y * cos_theta)
+            ray_end = ray_start + b2Vec2(dir_x, dir_y) * MAX_RAY_LENGTH
+            callback = RayCastClosestCallback()
+            self.box2d_world.RayCast(callback, ray_start, ray_end)
+            observation.append(callback.fraction * MAX_RAY_LENGTH)
+
+        # Car Configuration
         observation += self.car.get_configuration()
+
         return np.array(observation, dtype=np.float32)
 
     def _output_telemetry(self):
@@ -236,3 +253,39 @@ class RacecarDrivingEnv(gym.Env):
             os.makedirs("../telemetry")
         with open("../telemetry/output.pkl", 'wb') as file:
             pickle.dump({"track": self.bezier, "track_width": TRACK_WIDTH, "telemetry": self.telemetry}, file)
+
+
+class RayCastClosestCallback(b2RayCastCallback):
+    """This callback finds the closest hit"""
+
+    def __repr__(self):
+        return 'Closest hit'
+
+    def __init__(self):
+        b2RayCastCallback.__init__(self)
+        self.fixture = None
+        self.hit = False
+        self.point = None
+        self.normal = None
+        self.fraction = 1
+
+    def ReportFixture(self, fixture, point, normal, fraction):
+        '''
+        Called for each fixture found in the query. You control how the ray
+        proceeds by returning a float that indicates the fractional length of
+        the ray. By returning 0, you set the ray length to zero. By returning
+        the current fraction, you proceed to find the closest point. By
+        returning 1, you continue with the original ray clipping. By returning
+        -1, you will filter out the current fixture (the ray will not hit it).
+        '''
+        self.hit = True
+        self.fixture = fixture
+        self.point = b2Vec2(point)
+        self.normal = b2Vec2(normal)
+        self.fraction = fraction
+        # NOTE: You will get this error:
+        #   "TypeError: Swig director type mismatch in output value of
+        #    type 'float32'"
+        # without returning a value
+        return fraction
+

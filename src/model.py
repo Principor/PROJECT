@@ -34,7 +34,7 @@ class Model(nn.Module):
         self.state_mask_type = state_mask_type
 
         self.state_mask = torch.ones(state_size)
-        self.state_mask[16:] = 0
+        self.state_mask[15:] = 0
 
         self.actor_network = nn.Sequential(
             nn.Linear(state_size, self.hidden_size),
