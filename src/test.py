@@ -1,5 +1,4 @@
 import gym
-import torch
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from model import Model, state_to_tensor
@@ -8,16 +7,16 @@ import racecar_driving
 # Parameters
 GUI = True
 NUM_EPISODES = 10
-CAR_INDEX = 0
-RUN_NAME = "ff"
+CAR_INDEX = 1
+RUN_NAME = "lstm"
+TRACK_LIST = ["test"]
 
 if __name__ == '__main__':
     """
     Test the trained model
     """
 
-    track_list = ["test"]
-    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=GUI, car_index=CAR_INDEX, track_list=track_list,
+    env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', gui=GUI, car_index=CAR_INDEX, track_list=TRACK_LIST,
                                         transform_tracks=False)])
     # Load normaliser generated during training so inputs match
     env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)

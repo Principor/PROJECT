@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 
 from racecar_driving.resources import car
@@ -5,13 +7,10 @@ from racecar_driving.resources import car
 
 kwargs = [
     {
-        "grip_factor": 1.0
+        "com_y": -1
     },
     {
-        "grip_factor": 0.5
-    },
-    {
-        "grip_factor": 1.5
+        "com_y": 0.5
     }
 ]
 
@@ -29,7 +28,7 @@ class CarGenerator:
             self.car.remove()
         if self.car_index == -1:
             self.car = car.Car(self.client, position, orientation,
-                               grip_factor=np.random.uniform(0.5, 1.5))
+                               com_y=np.random.uniform(-1, 0.5))
         else:
             self.car = car.Car(self.client, position, orientation, **kwargs[self.car_index])
         return self.car

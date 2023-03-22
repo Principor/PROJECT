@@ -181,7 +181,7 @@ class Car:
         p.removeBody(self.body)
 
     def get_configuration(self):
-        return [self.grip_factor]
+        return [self.com_y]
 
 class Axle:
     """
