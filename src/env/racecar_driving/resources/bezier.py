@@ -211,6 +211,12 @@ class Bezier:
         return self.control_points[point_index % self.num_points]
 
     def get_lines(self, track_width):
+        """
+        Get line segments that make up the track limits
+
+        :param track_width: The width of the track
+        :return: A list of tuples (Vector2, Vector2) representing start and end points of line segments
+        """
         centre_points = [self.get_segment_point(0, 0)]
         for segment in range(self.num_segments):
             centre_points += split_curve_recursive(*tuple(self.get_segment_points(segment)))

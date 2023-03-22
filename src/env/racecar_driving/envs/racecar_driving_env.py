@@ -197,6 +197,11 @@ class RacecarDrivingEnv(gym.Env):
         p.disconnect(physicsClientId=self.client)
 
     def _draw_lines(self, track_lines):
+        """
+        Draw the track limits in the pybullet renderer
+
+        :param track_lines: The width of the track
+        """
         if not self.gui:
             return
         for line in self.debug_lines:
@@ -256,7 +261,10 @@ class RacecarDrivingEnv(gym.Env):
 
 
 class RayCastClosestCallback(b2RayCastCallback):
-    """This callback finds the closest hit"""
+    """
+    Callback to find distance of closest hit
+    Copied from raycast.py at https://github.com/pybox2d/pybox2d
+    """
 
     def __repr__(self):
         return 'Closest hit'
@@ -283,9 +291,6 @@ class RayCastClosestCallback(b2RayCastCallback):
         self.point = b2Vec2(point)
         self.normal = b2Vec2(normal)
         self.fraction = fraction
-        # NOTE: You will get this error:
-        #   "TypeError: Swig director type mismatch in output value of
-        #    type 'float32'"
-        # without returning a value
+
         return fraction
 
