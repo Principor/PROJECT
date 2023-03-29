@@ -36,24 +36,17 @@ class Model(nn.Module):
         self.state_mask = torch.ones(state_size)
         self.state_mask[15:] = 0
 
-        self.actor_network = nn.Sequential(
-            nn.Linear(state_size, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.hidden_size),
-            nn.ReLU(),
-        )
-        self.critic_network = nn.Sequential(
-            nn.Linear(state_size, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.hidden_size),
-            nn.ReLU(),
-        )
+        self.actor_0 = nn.Sequential(nn.Linear(state_size, self.hidden_size), nn.ReLU())
+        self.critic_0 = nn.Sequential(nn.Linear(state_size, self.hidden_size), nn.ReLU())
+        
+        self.actor_1 = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU())
+        self.critic_1 = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU())
 
         self.actor_lstm = nn.LSTM(self.hidden_size, self.hidden_size)
         self.critic_lstm = nn.LSTM(self.hidden_size, self.hidden_size)
 
         self.mean = nn.Linear(self.hidden_size, action_size)
-        self.log_std = nn.Parameter(torch.zeros(action_size))
+        self.log_std = nn.Linear(self.hidden_size, action_size)
         self.value = nn.Linear(self.hidden_size, 1)
 
         self.actor_lstm_state = self.critic_lstm_state = None
@@ -85,28 +78,28 @@ class Model(nn.Module):
             actor_state *= self.state_mask
             critic_state *= self.state_mask
 
-        actor_forward = self.actor_network(actor_state)
-        critic_forward = self.critic_network(critic_state)
+        actor_0 = self.actor_0(actor_state)
+        critic_0 = self.critic_0(critic_state)
 
-        actor_lstm = torch.zeros_like(actor_forward)
-        critic_lstm = torch.zeros_like(critic_forward)
+        actor_1 = torch.zeros_like(actor_0)
+        critic_1 = torch.zeros_like(critic_0)
         if self.recurrent_layers:
             for i in range(sequence_length):
-                actor_lstm_in = actor_forward[i].unsqueeze(0)
-                critic_lstm_in = critic_forward[i].unsqueeze(0)
-                actor_lstm_out, self.actor_lstm_state = self.actor_lstm(actor_lstm_in, self.actor_lstm_state)
-                critic_lstm_out, self.critic_lstm_state = self.critic_lstm(critic_lstm_in, self.critic_lstm_state)
-                actor_lstm[i] = actor_lstm_out.squeeze(0)
-                critic_lstm[i] = critic_lstm_out.squeeze(0)
+                actor_in = actor_0[i].unsqueeze(0)
+                critic_in = actor_0[i].unsqueeze(0)
+                actor_out, self.actor_lstm_state = self.actor_lstm(actor_in, self.actor_lstm_state)
+                critic_out, self.critic_lstm_state = self.critic_lstm(critic_in, self.critic_lstm_state)
+                actor_1[i] = actor_out.squeeze(0)
+                critic_1[i] = critic_out.squeeze(0)
                 if dones is not None:
                     self.apply_mask(1 - dones[i])
         else:
-            actor_lstm = actor_forward
-            critic_lstm = critic_forward
+            actor_1 = self.actor_1(actor_0)
+            critic_1 = self.critic_1(critic_0)
 
-        mean = self.mean(actor_lstm)
-        std = self.log_std.exp()
-        value = self.value(critic_lstm)
+        mean = self.mean(actor_1)
+        std = self.log_std(actor_1).exp()
+        value = self.value(critic_1)
         return torch.distributions.Normal(mean, std), value
 
     def save_model(self, path):

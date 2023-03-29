@@ -26,8 +26,11 @@ class CarGenerator:
     def reset_car(self, position, orientation):
         if self.car is not None:
             self.car.remove()
+
         if self.car_index == -1:
+            rand_index = np.random.randint(0, len(kwargs))
             self.car = car.Car(self.client, position, orientation,
+                               # **kwargs[rand_index])
                                com_y=np.random.uniform(-1, 0.5))
         else:
             self.car = car.Car(self.client, position, orientation, **kwargs[self.car_index])

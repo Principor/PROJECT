@@ -5,10 +5,10 @@ from model import Model, state_to_tensor
 import racecar_driving
 
 # Parameters
-GUI = True
+GUI = False
 NUM_EPISODES = 10
 CAR_INDEX = 1
-RUN_NAME = "lstm"
+RUN_NAME = "ff_unmasked"
 TRACK_LIST = ["test"]
 
 if __name__ == '__main__':
@@ -22,6 +22,7 @@ if __name__ == '__main__':
     env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
     env.training = False
     actor = Model.load_model("../models/{}/model.pth".format(RUN_NAME))
+    print(actor.state_mask_type)
 
     print()
 

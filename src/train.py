@@ -12,11 +12,11 @@ from model import Model, StateMaskType, state_to_tensor
 import racecar_driving
 
 # Parameters
-NUM_UPDATES = 100
+NUM_UPDATES = 50
 NUM_ENVS = 4
 NUM_STEPS = 8192
 BATCH_SIZE = 2048
-SEQUENCE_LENGTH = 64
+SEQUENCE_LENGTH = 16
 
 NUM_EPOCHS = 10
 EPSILON = 0.2
@@ -28,8 +28,8 @@ DECAY_LR = True
 MAX_GRAD_NORM = 0.5
 
 LOG_FREQUENCY = 5
-RUN_NAME = "lstm"
-RECURRENT_LAYERS = True
+RUN_NAME = "ff_unmasked"
+RECURRENT_LAYERS = False
 STATE_MASK_TYPE = StateMaskType.NO_STATE_MASK
 CAR_INDEX = -1
 
