@@ -1,5 +1,5 @@
+import argparse
 import os
-import random
 import time
 
 import gym
@@ -8,30 +8,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
-from model.model import Model, StateMaskType, state_to_tensor
-import racecar_driving
-
-# Parameters
-NUM_UPDATES = 50
-NUM_ENVS = 4
-NUM_STEPS = 8192
-BATCH_SIZE = 2048
-SEQUENCE_LENGTH = 16
-
-NUM_EPOCHS = 10
-EPSILON = 0.2
-GAMMA = 0.99
-GAE_LAMBDA = 0.95
-CRITIC_DISCOUNT = 0.5
-LEARNING_RATE = 0.0003
-DECAY_LR = True
-MAX_GRAD_NORM = 0.5
-
-LOG_FREQUENCY = 5
-RUN_NAME = "lstm_asymmetric"
-RECURRENT_LAYERS = True
-STATE_MASK_TYPE = StateMaskType.ACTOR_STATE_MASK
-CAR_INDEX = -1
+from model import Model, state_to_tensor
 
 
 def normalise(x):
@@ -269,73 +246,100 @@ class Agent:
 
         self.model.actor_lstm_state, self.model.critic_lstm_state = old_actor_state, old_critic_state
 
-    def save_model(self):
+    def save_model(self, run_name):
         """
         Save the model
         """
-        path = "../models/{}".format(RUN_NAME)
+        path = "../models/{}".format(run_name)
         if not os.path.exists(path):
             os.makedirs(path)
         self.model.save_model(path + "/model.pth")
 
 
-def make_env():
+def make_env(car_index):
     """
     Make an instance of the environment for training
     """
-    track_list = None
-    return gym.make('RacecarDriving-v0', car_index=CAR_INDEX, track_list=track_list, transform_tracks=False)
+    return gym.make('RacecarDriving-v0', car_index=car_index, transform_tracks=False)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run_name", type=str, default="lstm_asymmetric", help="the name of the run")
+    parser.add_argument("--car_index", type=int, default=-1, help="the index of the car to use")
+    parser.add_argument("--recurrent_layers", type=bool, default=True, help="whether to use recurrent layers")
+    parser.add_argument("--state_mask_type", type=int, default=0, help="which networks should have masked inputs")
+    parser.add_argument("--log_frequency", type=int, default=5, help="how often to output progress")
+
+    parser.add_argument("--num_updates", type=int, default=50, help="the number of updates to perform")
+    parser.add_argument("--num_envs", type=int, default=4, help="the number of environments to simulate in parallel")
+    parser.add_argument("--num_steps", type=int, default=8192, help="the number of steps to perform before updating")
+    parser.add_argument("--batch_size", type=int, default=2048,
+                        help="the size of the batches to split the samples into")
+    parser.add_argument("--sequence_length", type=int, default=16, help="the size of the sequences to train with")
+
+    parser.add_argument("--num-epochs", type=int, default=10, help="the number of epochs to perform on each sample")
+    parser.add_argument("--epsilon", type=float, default=0.2, help="the epsilon for ppo")
+    parser.add_argument("--gamma", type=float, default=0.99, help="the gamma to use for discounted returns")
+    parser.add_argument("--gae_lambda", type=float, default=0.95, help="the lambda to use for the gae calculation")
+    parser.add_argument("--critic_discount", type=float, default=0.5, help="the discount factor for the critic's loss")
+    parser.add_argument("--learning_rate", type=float, default=0.0003, help="the initial learning rate")
+    parser.add_argument("--decay_lr", type=bool, default=True, help="whether the learning rate should decay")
+    parser.add_argument("--max_grad_norm", type=float, default=0.5, help="the maximum gradient norm")
+    return parser.parse_args()
 
 
 def train():
     """
     Train the model
     """
+    args = parse_args()
 
     # Vectorise and wrap environment
-    envs = SubprocVecEnv([lambda: make_env() for _ in range(NUM_ENVS)])
+    envs = SubprocVecEnv([lambda: make_env(args.car_index) for _ in range(args.num_envs)])
     envs = VecMonitor(envs)
-    envs = VecNormalize(envs, gamma=GAMMA)
+    envs = VecNormalize(envs, gamma=args.gamma)
     print()
-    print(RUN_NAME)
+    print(args.run_name)
 
-    writer = SummaryWriter("../summaries/" + RUN_NAME)
+    writer = SummaryWriter("../summaries/" + args.run_name)
 
-    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], RECURRENT_LAYERS, STATE_MASK_TYPE,
-                  NUM_UPDATES, NUM_ENVS, BATCH_SIZE, SEQUENCE_LENGTH, NUM_EPOCHS, EPSILON, GAMMA, GAE_LAMBDA,
-                  CRITIC_DISCOUNT, LEARNING_RATE, DECAY_LR, MAX_GRAD_NORM)
+    agent = Agent(envs.observation_space.shape[0], envs.action_space.shape[0], args.recurrent_layers,
+                  args.state_mask_type, args.num_updates, args.num_envs, args.batch_size, args.sequence_length,
+                  args.num_epochs, args.epsilon, args.gamma, args.gae_lambda, args.critic_discount, args.learning_rate,
+                  args.decay_lr, args.max_grad_norm)
 
     # Save the score of each episode to track progress
     scores = []
     start_time = time.time()
 
     observation = envs.reset()
-    for update in range(NUM_UPDATES):
-        for update_step in range(NUM_STEPS):
+    for update in range(args.num_updates):
+        for update_step in range(args.num_steps):
             action = agent.choose_action(observation)
             observation, reward, done, info = envs.step(action)
             agent.finish_step(reward, done)
 
             # Record the return of each finished episode
-            for i in range(NUM_ENVS):
+            for i in range(args.num_envs):
                 item = info[i]
                 if 'episode' in item.keys():
                     score = item['episode']['r']
                     scores.append(score)
-                    writer.add_scalar('score', score, (update * NUM_STEPS + update_step) * NUM_ENVS + i)
+                    writer.add_scalar('score', score, (update * args.num_steps + update_step) * args.num_envs + i)
 
         # Update models
         agent.learn(observation)
 
         # Output progress
-        if (update + 1) % LOG_FREQUENCY == 0:
+        if (update + 1) % args.log_frequency == 0:
             print("Update: {}".format(update).ljust(15), end="")
             print("Score: {}".format(round(float(np.mean(scores)), 2)).ljust(20), end="")
             print("Time: {}".format(round(time.time() - start_time, 2)))
             scores.clear()
 
     agent.save_model()
-    envs.save("../models/{}/normaliser".format(RUN_NAME))   # Save normaliser
+    envs.save("../models/{}/normaliser".format(args.run_name))   # Save normaliser
     envs.close()
     writer.close()
 

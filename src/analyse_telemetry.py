@@ -1,3 +1,4 @@
+import argparse
 import pickle
 
 import gym
@@ -5,25 +6,38 @@ import numpy as np
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 import matplotlib.pyplot as plt
 
-from model.model import Model, state_to_tensor
-
-RUN_NAME = "lstm_asymmetric"
-CAR_INDEX = 1
-TRACK_NAME = "test"
-NEW_TELEMETRY = True
-PLOT_THROTTLE = False
-PLOT_POSITION = True
-PLOT_SPEED = False
+from model import Model, state_to_tensor
 
 
-def main():
-    if NEW_TELEMETRY:
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run_name", type=str, default="lstm_asymmetric", help="the name of the run")
+    parser.add_argument("--car_index", type=int, default=-1, help="the index of the car to use")
+    parser.add_argument("--track_name", type=str, default="test", help="the name of the track to use")
+    parser.add_argument("--new_telemetry", type=bool, default=True, help="whether new telemetry should be generated")
+    parser.add_argument("--plot_throttle", type=bool, default=False,
+                        help="whether the throttle/brake should be plotted")
+    parser.add_argument("--plot_position", type=bool, default=False, help="whether the position should be plotted")
+    parser.add_argument("--plot_speed", type=bool, default=False, help="whether the speed should be plotted")
+    return parser.parse_args()
+
+
+def analyse_telemetry():
+    """
+    Generate and display telemetry
+    """
+
+    args = parse_args()
+
+    # Generate new telemetry
+    if args.new_telemetry:
         env = DummyVecEnv([lambda: gym.make('RacecarDriving-v0', save_telemetry=True, random_start=False,
-                                            car_index=CAR_INDEX, track_list=[TRACK_NAME], transform_tracks=False)])
+                                            car_index=args.car_index, track_list=[args.track_name],
+                                            transform_tracks=False)])
         # Load normaliser generated during training so inputs match
-        env = VecNormalize.load("../models/{}/normaliser".format(RUN_NAME), env)
+        env = VecNormalize.load("../models/{}/normaliser".format(args.run_name), env)
         env.training = False
-        actor = Model.load_model("../models/{}/model.pth".format(RUN_NAME))
+        actor = Model.load_model("../models/{}/model.pth".format(args.run_name))
 
         done = False
         observation = env.reset()
@@ -31,6 +45,7 @@ def main():
             action = actor(state_to_tensor(observation))[0].sample().detach().numpy().squeeze(0)
             observation, reward, done, info = env.step(action)
 
+    # Analyse the telemetry
     with open('../telemetry/output.pkl', 'rb') as file:
         data = pickle.load(file)
         track = data["track"]
@@ -54,14 +69,14 @@ def main():
         progress = np.array([track.get_total_progress(item[0], item[1]) for item in telemetry])
         progress -= np.min(progress)
 
-        if PLOT_THROTTLE:
+        if args.plot_throttle:
             throttle = np.clip(np.array(telemetry)[:, 4], 0, 1)
             brake = np.clip(-np.array(telemetry)[:, 5], 0, 1)
             plt.plot(progress, throttle, color='g')
             plt.plot(progress, brake, color='r')
             plt.show()
 
-        if PLOT_POSITION:
+        if args.plot_position:
             left_points = []
             right_points = []
             car_points = []
@@ -83,10 +98,10 @@ def main():
             plt.plot([x for x, _ in car_points], [y for _, y in car_points], color="blue")
             plt.show()
 
-        if PLOT_SPEED:
+        if args.plot_speed:
             plt.plot(progress, np.array(telemetry)[:, 3])
             plt.show()
 
 
 if __name__ == '__main__':
-    main()
+    analyse_telemetry()
