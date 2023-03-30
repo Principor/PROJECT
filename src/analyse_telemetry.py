@@ -2,12 +2,10 @@ import pickle
 
 import gym
 import numpy as np
-import torch
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 import matplotlib.pyplot as plt
 
-from model import Model, state_to_tensor
-import racecar_driving
+from model.model import Model, state_to_tensor
 
 RUN_NAME = "lstm_asymmetric"
 CAR_INDEX = 1

@@ -390,9 +390,9 @@ class Bezier:
 
     def save(self, name):
         """
-        Save a model
+        Save a track
 
-        :param name: The name to give the saved model
+        :param name: The name to give the saved track
         """
         with open(Bezier.get_path(name), "wb") as file:
             pickle.dump(self, file)
@@ -400,10 +400,10 @@ class Bezier:
     @staticmethod
     def load(name):
         """
-        Load a model
+        Load a track
 
-        :param name: The name of the model to load
-        :return: The loaded model
+        :param name: The name of the track to load
+        :return: The loaded track
         """
         with open(Bezier.get_path(name), "rb") as file:
             return pickle.load(file)

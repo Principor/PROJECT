@@ -8,7 +8,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
-from model import Model, StateMaskType, state_to_tensor
+from model.model import Model, StateMaskType, state_to_tensor
 import racecar_driving
 
 # Parameters
@@ -53,12 +53,20 @@ class Agent:
 
     :param state_size: The length of the state vector
     :param action_size: The length of the action vector
-    :param hidden_size: Number of nodes in the hidden layer
-
+    :param recurrent_layers: Whether recurrent layers should be used
+    :param state_mask_type: Which networks should have their inputs masked
+    :param num_updates: The total number of updates that will be performed
+    :param num_envs: The number of environments that will run in parallel
+    :param batch_size: The size of batches used in the updates
+    :param sequence_length: The length of the sequences that the samples will be split into
     :param num_epochs: The number of updates to complete at each step
     :param epsilon: Clipping parameter
     :param gamma: Discount factor
+    :param gae_lambda: Lambda for Generalised Advantage Estimation
+    :param critic_discount: The discount for the critic's loss
     :param lr: Learning rate
+    :param decay_lr: Whether the learning rate should decay each update
+    :param max_grad_norm: The maximum allowed gradient norm
     """
     def __init__(self, state_size, action_size, recurrent_layers, state_mask_type, num_updates, num_envs, batch_size,
                  sequence_length, num_epochs, epsilon, gamma, gae_lambda, critic_discount, lr, decay_lr, max_grad_norm):
@@ -272,6 +280,9 @@ class Agent:
 
 
 def make_env():
+    """
+    Make an instance of the environment for training
+    """
     track_list = None
     return gym.make('RacecarDriving-v0', car_index=CAR_INDEX, track_list=track_list, transform_tracks=False)
 

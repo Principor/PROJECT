@@ -20,7 +20,8 @@ class Model(nn.Module):
 
     :param state_size: The length of the state vector
     :param action_size: The length of the action vector
-    :param hidden_size: Number of nodes in the hidden layer
+    :param recurrent_layers: Whether recurrent layers should be used
+    :param state_mask_type: Which networks should have their inputs masked
     """
 
     def __init__(self, state_size, action_size, recurrent_layers=False,
@@ -52,12 +53,22 @@ class Model(nn.Module):
         self.actor_lstm_state = self.critic_lstm_state = None
 
     def initialise_hidden_states(self, batch_size):
+        """
+        Initialise LSTM memory
+
+        :param batch_size: The batch size that will be used during training
+        """
         self.actor_lstm_state = (torch.zeros(1, batch_size, self.hidden_size),
                                  torch.zeros(1, batch_size, self.hidden_size))
         self.critic_lstm_state = (torch.zeros(1, batch_size, self.hidden_size),
                                   torch.zeros(1, batch_size, self.hidden_size))
 
     def apply_mask(self, mask):
+        """
+        Apply a mask to reset memory for finished episodes
+
+        :param mask: The mask to apply
+        """
         self.actor_lstm_state = [item * mask for item in self.actor_lstm_state]
         self.critic_lstm_state = [item * mask for item in self.critic_lstm_state]
 
@@ -66,6 +77,7 @@ class Model(nn.Module):
         Generate action distribution and evaluate value for given state
 
         :param state: The current state
+        :param dones: Whether each state was terminal
         :return: Distribution of possible actions, value of current state
         """
         sequence_length, _ = state.shape[:2]
@@ -103,6 +115,11 @@ class Model(nn.Module):
         return torch.distributions.Normal(mean, std), value
 
     def save_model(self, path):
+        """
+        Save a model
+
+        :param name: The name to give the saved model
+        """
         torch.save({
             'state_size': self.state_size,
             'action_size': self.action_size,
@@ -113,6 +130,12 @@ class Model(nn.Module):
 
     @staticmethod
     def load_model(path):
+        """
+        Load a model
+
+        :param name: The name of the model to load
+        :return: The loaded model
+        """
         checkpoint = torch.load(path)
         state_size = checkpoint['state_size']
         action_size = checkpoint['action_size']

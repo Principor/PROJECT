@@ -64,6 +64,12 @@ class Car:
     :param client: The ID of the physics client to simulate the car in
     :param position: The position to create the car at
     :param orientation: The orientation to create  the car with
+    :param mass: The mass of the car in kilograms
+    :param wheelbase: The distance between the front and rear tyres in metres
+    :param track_width: The distance between the left and right tyres in metres
+    :param com_y: The offset of the center of mass along the y-axis in metres
+    :param com_z: The offset of the center of mass along the z-axis in metres
+    :param grip_factor: Multiplier for the amount of tyre grip
     """
 
     def __init__(self, client, position, orientation, mass=100, wheelbase=3, track_width=2.2, com_y=-0.3, com_z=-0.3,
@@ -181,6 +187,11 @@ class Car:
         p.removeBody(self.body)
 
     def get_configuration(self):
+        """
+        Get the physical properties of the car
+
+        :return: The offset of the center of mass along the z-axis in metres
+        """
         return [self.com_y]
 
 class Axle:
@@ -197,6 +208,7 @@ class Axle:
     :param rollbar_stiffness: How much both springs will exert to match each other's length
     :param wheel_radius: The radius of the wheels
     :param wheel_mass The mass of the wheels
+    :param grip_factor: Multiplier for the amount of tyre grip
     :param client: The ID of the physics client that the car was added to
     """
 
@@ -281,6 +293,7 @@ class Wheel:
     :param damper_stiffness: How much force the spring will exert to slow itself down
     :param radius: The radius of the wheel
     :param mass: The mass of the wheel
+    :param grip_factor: Multiplier for the amount of tyre grip
     :param client: The ID of the physics client that the car was added to
     """
 

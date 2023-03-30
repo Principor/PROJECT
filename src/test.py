@@ -1,8 +1,7 @@
 import gym
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from model import Model, state_to_tensor
-import racecar_driving
+from model.model import Model, state_to_tensor
 
 # Parameters
 GUI = False
@@ -11,7 +10,8 @@ CAR_INDEX = 1
 RUN_NAME = "ff_unmasked"
 TRACK_LIST = ["test"]
 
-if __name__ == '__main__':
+
+def main():
     """
     Test the trained model
     """
@@ -39,3 +39,7 @@ if __name__ == '__main__':
         print("Episode {} score: {}".format(episode, score))
         scores.append(score)
     print("\nMean score: {}".format(sum(scores) / NUM_EPISODES))
+
+
+if __name__ == '__main__':
+    main()

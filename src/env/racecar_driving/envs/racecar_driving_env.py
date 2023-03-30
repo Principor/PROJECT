@@ -27,6 +27,9 @@ class RacecarDrivingEnv(gym.Env):
     :param gui: Create environment with debugger window
     :param random_start: Whether to start from a random point or fixed point
     :param save_telemetry: Record positioning and inputs of the car at all points
+    :param car_index: The index of the car to use
+    :param track_list: List of names of tracks to use
+    :param transform_tracks: Whether tracks should be transformed
     """
 
     metadata = {
@@ -144,6 +147,7 @@ class RacecarDrivingEnv(gym.Env):
         :return: observation
         """
 
+        # Generate new track
         self.bezier = Bezier.load(random.choice(self.track_list))
         if self.transform_tracks:
             if random.choice([True, False]):
@@ -152,9 +156,9 @@ class RacecarDrivingEnv(gym.Env):
                 self.bezier.reverse()
             self.bezier.add_noise()
 
+        # Set up track edges in debug view and 2D physics world
         track_lines = self.bezier.get_lines(TRACK_WIDTH)
         self._draw_lines(track_lines)
-
         self.box2d_world = b2World(gravity=(0, -10))
         for start, end in track_lines:
             self.box2d_world.CreateStaticBody(
@@ -165,21 +169,21 @@ class RacecarDrivingEnv(gym.Env):
         self._output_telemetry()
         self.telemetry = []
 
+        # Spawn car
         if self.random_start:
             self.segment_index = random.randrange(self.bezier.num_segments)
             t = random.random()
         else:
             self.segment_index = 6
             t = 0
-
         start_position = self.bezier.get_curve_point(self.segment_index, t)
         direction = self.bezier.get_direction(self.segment_index, t).tuple()
         angle = math.atan2(direction[1], direction[0]) - math.pi / 2
-
         self.car = self.car_generator.reset_car(
             start_position.make_3d(1.5).tuple(),
             p.getQuaternionFromEuler((0, 0, angle))
         )
+
         self.previous_progress = self.bezier.get_total_progress(self.segment_index, t)
         self.previous_position = Vector2(0, 0)
         self.velocity = Vector2(0, 0)
@@ -220,8 +224,9 @@ class RacecarDrivingEnv(gym.Env):
         return self.car.get_transform().position.get_xy()
 
     def _get_observation(self):
-        observation = []
+        # Get state/observation for current time-step
 
+        observation = []
         car_transform = self.car.get_transform()
 
         # Velocity
@@ -252,6 +257,7 @@ class RacecarDrivingEnv(gym.Env):
         return np.array(observation, dtype=np.float32)
 
     def _output_telemetry(self):
+        # Save telemetry to a file
         if len(self.telemetry) == 0:
             return
         if not os.path.exists("../telemetry"):

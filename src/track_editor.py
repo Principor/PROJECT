@@ -48,6 +48,8 @@ class TrackEditor:
 
         self.canvas = Canvas(self.root, width=600, height=600)
         self.canvas.pack()
+
+        # Register action callbacks
         self.canvas.bind('<Motion>', self.mouse_move)
         self.canvas.bind('<Button 1>', self.left_mouse_press)
         self.canvas.bind('<ButtonRelease 1>', self.left_mouse_release)
@@ -60,6 +62,7 @@ class TrackEditor:
 
         self.show_points = True
 
+        # Create buttons
         self.button_frame = Frame(self.root)
         self.button_frame.pack()
         self.save_button = Button(self.button_frame, text="Save", command=self.save)
