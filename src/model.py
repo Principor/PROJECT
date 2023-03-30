@@ -68,7 +68,7 @@ class Model(nn.Module):
         :param state: The current state
         :return: Distribution of possible actions, value of current state
         """
-        sequence_length, buffer_size = state.shape[:2]
+        sequence_length, _ = state.shape[:2]
 
         actor_state = state
         critic_state = state
@@ -86,7 +86,7 @@ class Model(nn.Module):
         if self.recurrent_layers:
             for i in range(sequence_length):
                 actor_in = actor_0[i].unsqueeze(0)
-                critic_in = actor_0[i].unsqueeze(0)
+                critic_in = critic_0[i].unsqueeze(0)
                 actor_out, self.actor_lstm_state = self.actor_lstm(actor_in, self.actor_lstm_state)
                 critic_out, self.critic_lstm_state = self.critic_lstm(critic_in, self.critic_lstm_state)
                 actor_1[i] = actor_out.squeeze(0)
