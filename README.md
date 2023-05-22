@@ -8,9 +8,10 @@ To run this code requires a virtual environment. This can be set up using <code>
 </code>
 
 <ul>
-<li>To train an agent, run "train.py"</li>
-<li>To test an agent with a visual debugger, run "test.py"</li>
-<li>To analyse telemetry from the car, run "analyse_telemetry.py"</li>
+  <li>To train an agent, run "train.py"</li>
+  <li>To test an agent, run "test.py"</li>
+  <li>To analyse telemetry from the car, run "analyse_telemetry.py"</li>
+  <li>To view/edit tracks, run "track_editor.py"</li>
 </ul>
 
 Scores from training are saved to the summaries directory, and can viewed using tensorboard
