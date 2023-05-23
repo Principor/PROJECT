@@ -1,8 +1,7 @@
 # Final Year Project
 
 The goal of this project is compare reinforcement learning methods in their ability to train an adaptive autonomous
-driving agent. In its current form, PPO is fully implemented to train a driving agent - although it is not yet
-adaptive.
+driving agent. 
 
 To run this code requires a virtual environment. This can be set up using <code>conda env create -f environment.yml
 </code>
