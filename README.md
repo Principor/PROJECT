@@ -16,7 +16,7 @@ To run this code requires a virtual environment. This can be set up using <code>
 Scores from training are saved to the summaries directory, and can viewed using tensorboard
 
 The results of training the final model are shown below, demonstrating a clear improvement in the agents ability to drive.
-![image](./images/Best Model.png)<br>
+![image](./images/best_model.png)<br>
 The following shows a comparison of scores for different methods of training adaptive agents. The first two agents were only 
 trained to drive a single car, then tested on randomly generated cars. The next three are different methods of training
 with multiple cars, including "unmasked ff", where the actor and critic are explicitly told the properties of the car it
@@ -25,8 +25,8 @@ critic, to give more accurate feedback for specific cars.
 ![image](./images/barchart.png)<br>
 The following is a demonstration of the racing line the agent takes, which has clearly been optimised to maximise the
 speed of the car
-![image](./images/racing line.png)<br>
+![image](./images/racing_line.png)<br>
 Finally, due to the adaptability of the agent, it can be used to test different car configurations to compare which one
 performs the best. The following are scores achieved for the center of mass being further forwards or backwards. The graph
 shows that a car is fastest when the center of mass is 0.3m towards the front.
-![image](./images/Car Performance.png)
+![image](./images/car_performance.png)
